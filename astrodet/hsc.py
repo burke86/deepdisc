@@ -6,6 +6,8 @@ from astropy.wcs import WCS
 import matplotlib
 import matplotlib.pyplot as plt
 
+from astropy.coordinates import SkyCoord, match_coordinates_sky
+from astropy.nddata import Cutout2D
 
 def get_tract_patch_from_coord(coord, f='data/hsc/tracts_patches_UD-COSMOS.txt'):
     """
@@ -25,9 +27,6 @@ def get_tract_patch_from_coord(coord, f='data/hsc/tracts_patches_UD-COSMOS.txt')
     patch : [int, int]
         Patch ID tuple
     """
-
-    from astropy.coordinates import SkyCoord, match_coordinates_sky
-    from astropy.nddata import Cutout2D
 
     lines = open(f).read().splitlines()
     # Keep only field centers
@@ -50,7 +49,7 @@ def get_tract_patch_from_coord(coord, f='data/hsc/tracts_patches_UD-COSMOS.txt')
     
     return tract, patch
 
-def get_hsc_data(dirpath, filters=['g','r','i'], tract=10054, patch=[0,0], coord=None, cutout_size=[128, 128], plot_image=False):
+def get_hsc_data(dirpath, filters=['g','r','i'], tract=10054, patch=[0,0], coord=None, cutout_size=[128, 128]):
     """
     Get HSC data given tract/patch info or SkyCoord
     
@@ -69,8 +68,6 @@ def get_hsc_data(dirpath, filters=['g','r','i'], tract=10054, patch=[0,0], coord
         Astropy SkyCoord, when specified, overrides tract/patch info and attempts to lookup HSC filename from ra, dec
     cutout_size: [int, int]
         Size of cutout to use (set to None for no cutting)
-    plot_image: bool
-        Whether or not to plot the resulting image
         
     The image filepath is in the form:
         {dirpath}/deepCoadd/HSC-{filter}/{tract}/{patch[0]},{patch[1]}/calexp-HSC-{filter}-{tract}-{patch[0]},{patch[1]}.fits.gz
@@ -110,16 +107,5 @@ def get_hsc_data(dirpath, filters=['g','r','i'], tract=10054, patch=[0,0], coord
             data = Cutout2D(data, position=position, size=cutout_size, wcs=wcs).data
             
         datas.append(data)
-        
-    datas = np.array(datas)
-        
-    # Display one image cube
-    if plot_image:
-        fig, ax = plt.subplots(1, 1, figsize=(9,9))
-        norm = scarlet.display.AsinhMapping(minimum=0, stretch=1, Q=5)
-        img_rgb = scarlet.display.img_to_rgb(datas, norm=norm)
-        ax.imshow(img_rgb)
-        ax.axis('off')
-
-    obs_hdu = fits.PrimaryHDU(datas)
-    return obs_hdu.data
+    
+    return np.array(datas)

@@ -116,7 +116,7 @@ def make_catalog(datas, lvl=4, wave=True, subtract_background=False, segmentatio
     
     # Extract detection catalog with segmentation maps!
     # Can use this to retrieve ellipse params
-    catalog = sep.extract(detect, lvl, err=bkg.globalrms, segmentation_map=segmentation_map, maskthresh=5.0)
+    catalog = sep.extract(detect, lvl, err=bkg.globalrms, segmentation_map=segmentation_map, maskthresh=maskthresh)
         
     # Estimate background
     if subtract_background == True:
@@ -288,8 +288,9 @@ def _plot_scene(starlet_sources, observation, norm, catalog, show_model=False, s
 
 def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
                 subtract_background=False, max_chi2=5000, morph_thresh=0.1,
-                plot_wavelet=False, plot_likelihood=True, plot_scene=False,
-                plot_sources=False, add_ellipses=True, add_labels=False, add_boxes=False):
+                segmentation_map=True, plot_wavelet=False, plot_likelihood=True,
+                plot_scene=False, plot_sources=False, add_ellipses=True,
+                add_labels=False,add_boxes=False):
     
     """ Run P. Melchior's scarlet (https://github.com/pmelchior/scarlet) implementation 
     for source separation. This function will create diagnostic plots, a source detection catalog, 
@@ -324,7 +325,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     TODO: fill this out once I get the exact fits file output generated to Colin's liking 
     """
     
-    norm = AsinhMapping(minimum=0, stretch=stretch, Q=Q)
+    norm = scarlet.display.AsinhMapping(minimum=0, stretch=stretch, Q=Q)
         
     # Generate source catalog using wavelets
     catalog, bg_rms_hsc = make_catalog(datas, 3, wave=True, subtract_background=subtract_background)
@@ -411,7 +412,35 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         print("Re-fitting with Starlet models for poorly-fit sources.")
         
         starlet_blend, logL = fit_scarlet_blend(starlet_sources, observation, plot_likelihood=plot_likelihood)
+        
+        
+    # Extract the deblended catalog and update the chi2 residuals
+    print('Extracting deblended catalog.')
+    
+    catalog_deblended = []
+    segmentation_masks = []
+        
+    for k, src in enumerate(starlet_sources):
 
+        model = src.get_model(frame=model_frame)
+        model = observation.render(model)
+        res = datas - model
+
+        # Compute in bbox only
+        model = src.bbox.extract_from(model)
+        res = src.bbox.extract_from(res)
+        chi2s[k] = np.sum(res**2)
+        
+        # Run sep
+        cat, _ = make_catalog(model, 1, wave=False, subtract_background=False, segmentation_map=segmentation_map)
+        if segmentation_map == True:
+            cat, mask = cat
+            segmentation_masks.append(mask)
+        catalog_deblended.append(cat)
+        
+    # Combine catalog named array
+    #catalog_deblended = np.vstack(catalog_deblended)
+    
     # Plot scene: rendered model, observations, and residuals
     if plot_scene == True:
         _plot_scene(starlet_sources, observation, norm, catalog, show_model=False, show_rendered=True,
@@ -424,4 +453,4 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
                                      add_boxes=add_boxes)
         plt.show()
          
-    return starlet_sources, model_frame
+    return starlet_sources, model_frame, catalog, catalog_deblended, segmentation_masks
