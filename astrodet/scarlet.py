@@ -453,4 +453,4 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
                                      add_boxes=add_boxes)
         plt.show()
          
-    return starlet_sources, model_frame, catalog, catalog_deblended, segmentation_masks
+    return observation, starlet_sources, model_frame, catalog, catalog_deblended, segmentation_masks
