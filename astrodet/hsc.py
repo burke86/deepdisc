@@ -70,7 +70,7 @@ def get_hsc_data(dirpath, filters=['g','r','i'], tract=10054, patch=[0,0], coord
         Size of cutout to use (set to None for no cutting)
         
     The image filepath is in the form:
-        {dirpath}/deepCoadd/HSC-{filter}/{tract}/{patch[0]},{patch[1]}/calexp-HSC-{filter}-{tract}-{patch[0]},{patch[1]}.fits.gz
+        {dirpath}/deepCoadd/HSC-{filter}/{tract}/{patch[0]},{patch[1]}/calexp-HSC-{filter}-{tract}-{patch[0]},{patch[1]}.fits
     
     Returns
     -------
@@ -88,7 +88,7 @@ def get_hsc_data(dirpath, filters=['g','r','i'], tract=10054, patch=[0,0], coord
     datas = []
 
     for f in filters:
-        filepath = os.path.join(dirpath, f'HSC-{f}/{tract}/{patch[0]},{patch[1]}/calexp-HSC-{f}-{tract}-{patch[0]},{patch[1]}.fits.gz')
+        filepath = os.path.join(dirpath, f'HSC-{f}/{tract}/{patch[0]},{patch[1]}/calexp-HSC-{f}-{tract}-{patch[0]},{patch[1]}.fits')
         
         print(f'Loading "{filepath}".')
         
