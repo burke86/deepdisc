@@ -78,9 +78,9 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
 
         # Add info to header
         model_hdr = fits.Header()
-        model_hdr['bbox'] = str([bbox_x, bbox_y, bbox_w, bbox_h])
-        model_hdr['area'] = str(bbox_w * bbox_h)
-        model_hdr['ell_parm'] = str(list(ell_parm))
+        model_hdr['bbox'] = ','.join(map(str, [bbox_x, bbox_y, bbox_w, bbox_h]))
+        model_hdr['area'] = bbox_w * bbox_h
+        model_hdr['ell_parm'] = ','.join(map(str, list(ell_parm)))
         model_hdr['cat_id'] = 1 # Category ID #TODO: set categor_id based on if the source is extended or not
         
         return model_hdr
