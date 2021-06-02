@@ -58,16 +58,16 @@ def get_hsc_data(dirpath, filters=['g','r','i'], tract=10054, patch=[0,0], coord
     dirpath : str
         Path to HSC image file directory
     filters : list 
-        A list of filters for your images. E.g. ['G', 'R', 'I']. Must be uppercase to match the 
-        default filename of the HSC images.
+        A list of filters for your images. Default is ['g', 'r', 'i'].
     tract  : int
-        An integer used for specifying the tract. E.g. 10054
+        An integer used for specifying the tract. Default is 10054
     patch : [int, int]
-        Patch #,# 
+        Patch #,#. Default is [0,0]
     coord  : SkyCoord
-        Astropy SkyCoord, when specified, overrides tract/patch info and attempts to lookup HSC filename from ra, dec
+        Astropy SkyCoord, when specified, overrides tract/patch info and attempts to lookup HSC filename from ra, dec. 
+        Default is None
     cutout_size: [int, int]
-        Size of cutout to use (set to None for no cutting)
+        Size of cutout to use (set to None for no cutting). Default is [128, 128]
         
     The image filepath is in the form:
         {dirpath}/deepCoadd/HSC-{filter}/{tract}/{patch[0]},{patch[1]}/calexp-HSC-{filter}-{tract}-{patch[0]},{patch[1]}.fits
