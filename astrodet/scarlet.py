@@ -14,7 +14,7 @@ from matplotlib.patches import Ellipse
 from astropy.wcs import WCS
 
 def write_scarlet_results(datas, observation, starlet_sources, model_frame, catalog_deblended,
-                          segmentation_masks, norm, dirpath, filters, tract, patch): 
+                          segmentation_masks, dirpath, filters, tract, patch): 
     """
     Saves images in each channel, with headers for each source in image,
     such that the number of headers = number of sources detected in image.
@@ -33,8 +33,6 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         Deblended source detection catalog
     segmentation_masks: list
         List of segmentation mask of each object in image
-    norm: Scarlet function
-        Scarlet normalization for plotting   
     dirpath : str
         Path to HSC image file directory
     filters : list 
@@ -51,6 +49,41 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         dictionary of all paths to the saved scarlet files for the particular patch, tract.
         Saved image and model files for each filter, and one total segmentation mask file for all filters.
     """
+    
+    def _make_hdr(starlet_source, cat):
+        """
+        Helper function to make FITS header and insert metadata.
+        Parameters
+        ----------
+        starlet_source: starlet_source
+            starlet_source object for source k
+        cat: dict
+            catalog data for source k
+            
+        Returns
+        -------
+        model_hdr : Astropy fits.Header
+            FITS header for source k with catalog metadata
+        """
+        # For each header, assign descriptive data about each source
+        # (x0, y0, w, h) in absolute floating pixel coordinates
+        bbox_y = starlet_source.bbox.origin[1] # y-coord of the source's center
+        bbox_x = starlet_source.bbox.origin[2] # x-coord of the source's center
+        bbox_h = starlet_source.bbox.shape[1]
+        bbox_w = starlet_source.bbox.shape[2]
+
+        # Ellipse parameters (a, b, theta) from deblend catalog
+        e_a, e_b, e_theta = cat['a'], cat['b'], cat['theta']
+        ell_parm = np.concatenate((cat['a'], cat['b'], cat['theta']))
+
+        # Add info to header
+        model_hdr = fits.Header()
+        model_hdr['bbox'] = str([bbox_x, bbox_y, bbox_w, bbox_h])
+        model_hdr['area'] = str(bbox_w * bbox_h)
+        model_hdr['ell_parm'] = str(list(ell_parm))
+        model_hdr['cat_id'] = 1 # Category ID #TODO: set categor_id based on if the source is extended or not
+        
+        return model_hdr
 
     # Create dict for all saved filenames
     segmask_hdul = []
@@ -62,8 +95,7 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         f = f.upper()
 
         # Primary HDU is full image
-        img_rgb = scarlet.display.img_to_rgb(datas[i], norm=norm)
-        img_hdu = fits.PrimaryHDU(data=img_rgb[i])
+        img_hdu = fits.PrimaryHDU(data=datas[i])
 
         # Create header entry for each scarlet source
         for k, (src, cat) in enumerate(zip(starlet_sources, catalog_deblended)):
@@ -73,28 +105,9 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
             model = observation.render(model)
             model = src.bbox.extract_from(model)
 
-            # Source image
-            model_rgb = scarlet.display.img_to_rgb(model[i], norm=norm)
-
-            # For each header, assign descriptive data about each source
-            # (x0, y0, w, h) in absolute floating pixel coordinates
-            bbox_y = starlet_sources[k].bbox.origin[1] # y-coord of the source's center
-            bbox_x = starlet_sources[k].bbox.origin[2] # x-coord of the source's center
-            bbox_h = starlet_sources[k].bbox.shape[1]
-            bbox_w = starlet_sources[k].bbox.shape[2]
-
-            # Ellipse parameters (a, b, theta) from deblend catalog
-            e_a, e_b, e_theta = cat['a'], cat['b'], cat['theta']
-            ell_parm = np.concatenate((cat['a'], cat['b'], cat['theta']))
-
-            # Add info to header
-            model_hdr = fits.Header()
-            model_hdr['bbox'] = str([bbox_x, bbox_y, bbox_w, bbox_h])
-            model_hdr['area'] = str(bbox_w * bbox_h)
-            model_hdr['ell_parm'] = str(list(ell_parm))
-            model_hdr['cat_id'] = 1 # Category ID #TODO: set categor_id based on if the source is extended or not
-            # Save model data and header to ImageHDU for each source
-            model_hdu = fits.ImageHDU(data=model_rgb[i], header=model_hdr)
+            model_hdr = _make_hdr(starlet_sources[k], cat)
+            
+            model_hdu = fits.ImageHDU(data=model[i], header=model_hdr)
             model_primary = fits.PrimaryHDU()
 
             model_hdul.append(model_hdu)
@@ -105,39 +118,20 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         save_model_hdul = fits.HDUList([model_primary, *model_hdul])
 
         # Save list of filenames in dict for each band
-        print(f'saving img_{f} to: {dirpath} !')
         filenames[f'img_{f}'] = os.path.join(dirpath, f'calexp-HSC-{f}-{tract}-{patch[0]},{patch[1]}_scarlet_img.fits')
         save_img_hdul.writeto(filenames[f'img_{f}'], overwrite=True)
         
-        print(f'saving model_{f} to: {dirpath} !')
         filenames[f'model_{f}'] = os.path.join(dirpath, f'calexp-HSC-{f}-{tract}-{patch[0]},{patch[1]}_scarlet_model.fits')
         save_model_hdul.writeto(filenames[f'model_{f}'], overwrite=True)
         
         
-        
     # If we have segmentation mask data, save them as a separate fits file    
-    # Not dependent on filter
-    if segmentation_masks is not None: 
+    if segmentation_masks is not None:
+        
         # Create header entry for each scarlet source
         for k, (src, cat) in enumerate(zip(starlet_sources, catalog_deblended)):
-            # For each header, assign descriptive data about each source
-            # (x0, y0, w, h) in absolute floating pixel coordinates
-            bbox_y = starlet_sources[k].bbox.origin[1] # y-coord of the source's center
-            bbox_x = starlet_sources[k].bbox.origin[2] # x-coord of the source's center
-            bbox_h = starlet_sources[k].bbox.shape[1]
-            bbox_w = starlet_sources[k].bbox.shape[2]
-
-            # Ellipse parameters (a, b, theta) from deblend catalog
-            e_a, e_b, e_theta = cat['a'], cat['b'], cat['theta']
-            ell_parm = np.concatenate((cat['a'], cat['b'], cat['theta']))
-        
-            # Add info to header
-            segmask_hdr = fits.Header()
-            segmask_hdr['src_num'] = str(k) #save source number as header so we know order of seg. masks
-            segmask_hdr['bbox'] = str([bbox_x, bbox_y, bbox_w, bbox_h])
-            segmask_hdr['area'] = str(bbox_w * bbox_h)
-            segmask_hdr['ell_parm'] = str(list(ell_parm))
-            segmask_hdr['cat_id'] = 1 # Category ID #TODO: set categor_id based on if the source is extended or not
+            
+            segmask_hdr = _make_hdr(starlet_sources[k], cat)
 
             # Save each model source k in the image
             segmask_hdu = fits.ImageHDU(data=segmentation_masks[k], header=segmask_hdr)
@@ -146,11 +140,8 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
             segmask_hdul.append(segmask_hdu)
         
         save_segmask_hdul = fits.HDUList([segmask_primary, *segmask_hdul])
-        # Check: ImageHDUs are not iterable
         
-        print(f'saving segmask to: {dirpath} !')
         # Save list of filenames in dict for each band
-        # Exclude filter in file name b/c it's 1 segmask file for all filters
         filenames['segmask'] = os.path.join(dirpath, f'calexp-HSC-{tract}-{patch[0]},{patch[1]}_scarlet_segmask.fits')
         save_segmask_hdul.writeto(filenames['segmask'], overwrite=True)
 
