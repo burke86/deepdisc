@@ -67,6 +67,7 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         """
         # For each header, assign descriptive data about each source
         # (x0, y0, w, h) in absolute floating pixel coordinates
+        print(starlet_source.center)
         bbox_y = starlet_source.bbox.origin[1] # y-coord of the source's center
         bbox_x = starlet_source.bbox.origin[2] # x-coord of the source's center
         bbox_h = starlet_source.bbox.shape[1]
