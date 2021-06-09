@@ -62,8 +62,9 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         f = f.upper()
 
         # Primary HDU is full image
-        img_rgb = scarlet.display.img_to_rgb(datas[i], norm=norm)
-        img_hdu = fits.PrimaryHDU(data=img_rgb[i])
+        img_band = scarlet.display.img_to_rgb(datas[i], norm=norm)
+        img_hdu = fits.PrimaryHDU(data=img_band)
+        
 
         # Create header entry for each scarlet source
         for k, (src, cat) in enumerate(zip(starlet_sources, catalog_deblended)):
@@ -74,10 +75,22 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
             model = src.bbox.extract_from(model)
 
             # Source image
-            model_rgb = scarlet.display.img_to_rgb(model[i], norm=norm)
+            model_band = scarlet.display.img_to_rgb(model[i], norm=norm)
 
             # For each header, assign descriptive data about each source
             # (x0, y0, w, h) in absolute floating pixel coordinates
+            #print("ccords", starlet_sources[k])
+            #print(dir(starlet_sources[k]))
+            #print(starlet_sources[k].bbox)
+            #print(dir(starlet_sources[k].frame))
+            #print(starlet_sources[k].frame.get_pixel(starlet_sources[k].frame.get_sky_coord))
+            #print('fr bb', starlet_sources[k].frame.bbox)
+            print(starlet_sources[k].get_model)
+            #print(starlet_sources[k].model_to_box)
+            #print(dir(catalog_deblended[k]))
+            #print("center", src.bbox)
+            print("center", starlet_sources[k].center)
+            
             bbox_y = starlet_sources[k].bbox.origin[1] # y-coord of the source's center
             bbox_x = starlet_sources[k].bbox.origin[2] # x-coord of the source's center
             bbox_h = starlet_sources[k].bbox.shape[1]
@@ -90,11 +103,12 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
             # Add info to header
             model_hdr = fits.Header()
             model_hdr['bbox'] = str([bbox_x, bbox_y, bbox_w, bbox_h])
+            print(model_hdr['bbox'])
             model_hdr['area'] = str(bbox_w * bbox_h)
             model_hdr['ell_parm'] = str(list(ell_parm))
             model_hdr['cat_id'] = 1 # Category ID #TODO: set categor_id based on if the source is extended or not
             # Save model data and header to ImageHDU for each source
-            model_hdu = fits.ImageHDU(data=model_rgb[i], header=model_hdr)
+            model_hdu = fits.ImageHDU(data=model_band, header=model_hdr)
             model_primary = fits.PrimaryHDU()
 
             model_hdul.append(model_hdu)
