@@ -65,12 +65,12 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         model_hdr : Astropy fits.Header
             FITS header for source k with catalog metadata
         """
-        # For each header, assign descriptive data about each source
+        # For each header, assign descriptive data about each source 
         # (x0, y0, w, h) in absolute floating pixel coordinates
-        bbox_y = starlet_source.bbox.origin[1] # y-coord of the source's center
-        bbox_x = starlet_source.bbox.origin[2] # x-coord of the source's center
         bbox_h = starlet_source.bbox.shape[1]
         bbox_w = starlet_source.bbox.shape[2]
+        bbox_y = starlet_source.bbox.origin[1] + int(np.floor(bbox_w/2)) # y-coord of the source's center
+        bbox_x = starlet_source.bbox.origin[2] + int(np.floor(bbox_w/2)) # x-coord of the source's center
 
         # Ellipse parameters (a, b, theta) from deblend catalog
         e_a, e_b, e_theta = cat['a'], cat['b'], cat['theta']
