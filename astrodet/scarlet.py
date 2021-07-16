@@ -71,7 +71,9 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         bbox_w = starlet_source.bbox.shape[2]
         bbox_y = starlet_source.bbox.origin[1] + int(np.floor(bbox_w/2)) # y-coord of the source's center
         bbox_x = starlet_source.bbox.origin[2] + int(np.floor(bbox_w/2)) # x-coord of the source's center
-
+    
+        print('bbox is,', bbox_x, bbox_y, bbox_w, bbox_h)
+        
         # Ellipse parameters (a, b, theta) from deblend catalog
         e_a, e_b, e_theta = cat['a'], cat['b'], cat['theta']
         ell_parm = np.concatenate((cat['a'], cat['b'], cat['theta']))
@@ -183,7 +185,7 @@ def plot_stretch_Q(datas, stretches=[0.01,0.1,0.5,1], Qs=[1,10,5,100]):
     return fig
 
 
-def make_catalog(datas, lvl=4, wave=True, subtract_background=False, segmentation_map=False, maskthresh=5.0, object_limit=100000):
+def make_catalog(datas, lvl=4, wave=True, subtract_background=False, segmentation_map=False, maskthresh=10.0, object_limit=100000):
     """
     Creates a detection catalog by combining low and high resolution data
     
@@ -200,8 +202,8 @@ def make_catalog(datas, lvl=4, wave=True, subtract_background=False, segmentatio
         is False because HSC images are already background subtracted.
     segmentation_map : Bool
         Whether to run sep segmentation map
-    maskthresh : bool
-        Mask threshold for sep segmenation
+    maskthresh : float
+        Mask threshold for sep segmentation
     object_limit : int
         Limit on number of objects to detect in image
         
@@ -248,7 +250,7 @@ def make_catalog(datas, lvl=4, wave=True, subtract_background=False, segmentatio
             detect = detect_image
     
     bkg = sep.Background(detect)
-    # Set the limit on the number of sub-objects when deblending. Default is 1024
+    # Set the limit on the number of sub-objects when deblending.
     sep.set_sub_object_limit(object_limit)
     
     # Extract detection catalog with segmentation maps!
@@ -355,8 +357,8 @@ def _plot_wavelet(datas):
     return
 
 
-def _plot_scene(starlet_sources, observation, norm, catalog, show_model=False, show_rendered=True,
-               show_observed=True, show_residual=True, add_labels=True, add_boxes=False,
+def _plot_scene(starlet_sources, observation, norm, catalog, show_model=True, show_rendered=True,
+               show_observed=True, show_residual=True, add_labels=True, add_boxes=True,
                add_ellipses=True):
     
     """
@@ -403,7 +405,10 @@ def _plot_scene(starlet_sources, observation, norm, catalog, show_model=False, s
 
         # Plot sep ellipse around all sources from the detection catalog
         if add_ellipses == True:
+    
             for k, src in enumerate(catalog):
+                print("ELLIPSES")
+                print(k, src)
 
                 # See https://sextractor.readthedocs.io/en/latest/Position.html
                 e = Ellipse(xy=(src['x'], src['y']),
@@ -426,7 +431,7 @@ def _plot_scene(starlet_sources, observation, norm, catalog, show_model=False, s
 
 def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
                 subtract_background=False, max_chi2=5000, morph_thresh=0.1,
-                starlet_thresh=0.1, lvl=3,
+                starlet_thresh=0.1, lvl=5,
                 segmentation_map=True, plot_wavelet=False, plot_likelihood=True,
                 plot_scene=False, plot_sources=False, add_ellipses=True,
                 add_labels=False,add_boxes=False):
@@ -504,7 +509,9 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     
     # Loop through detections in catalog
     starlet_sources = []
+    print("CATALOG", catalog)
     for k, src in enumerate(catalog):
+        print(k,src, "\n")
 
         # Is the source compact relative to the PSF?
         if spread[k] < 1:
@@ -524,7 +531,9 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     print("Computing residuals.")
 
     # Compute reduced chi^2 for each rendered sources
+    print("STARLET_SOURCES")
     for k, src in enumerate(starlet_sources):
+        print(k,src, "\n")
 
         model = src.get_model(frame=model_frame)
         model = observation.render(model)
@@ -536,8 +545,10 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
 
         # Replace models with poor fits with StarletSource models
         if chi2s[k] > max_chi2:
-            starlet_sources[k] = scarlet.StarletSource(model_frame, (catalog["x"][k], catalog["y"][k]), observation,
-                                                       thresh=morph_thresh, starlet_thresh=starlet_thresh, full=False)
+            starlet_sources[k] = scarlet.StarletSource(model_frame,
+                                                       (catalog["y"][k], catalog["x"][k]), observation,
+                                                       thresh=morph_thresh, starlet_thresh=starlet_thresh,
+                                                       full=False)
 
         #plt.figure(figsize=(5,5))
         #model_rgb = scarlet.display.img_to_rgb(res, norm=norm)
