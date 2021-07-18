@@ -71,8 +71,6 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         bbox_w = starlet_source.bbox.shape[2]
         bbox_y = starlet_source.bbox.origin[1] + int(np.floor(bbox_w/2)) # y-coord of the source's center
         bbox_x = starlet_source.bbox.origin[2] + int(np.floor(bbox_w/2)) # x-coord of the source's center
-    
-        print('bbox is,', bbox_x, bbox_y, bbox_w, bbox_h)
         
         # Ellipse parameters (a, b, theta) from deblend catalog
         e_a, e_b, e_theta = cat['a'], cat['b'], cat['theta']
@@ -185,7 +183,7 @@ def plot_stretch_Q(datas, stretches=[0.01,0.1,0.5,1], Qs=[1,10,5,100]):
     return fig
 
 
-def make_catalog(datas, lvl=4, wave=True, subtract_background=False, segmentation_map=False, maskthresh=10.0, object_limit=100000):
+def make_catalog(datas, lvl=4, wave=True, segmentation_map=False, maskthresh=10.0, object_limit=100000):
     """
     Creates a detection catalog by combining low and high resolution data
     
@@ -258,18 +256,13 @@ def make_catalog(datas, lvl=4, wave=True, subtract_background=False, segmentatio
     catalog = sep.extract(detect, lvl, err=bkg.globalrms, segmentation_map=segmentation_map, maskthresh=maskthresh)
         
     # Estimate background
-    if subtract_background == True:
-        if type(datas) is np.ndarray:
+    if type(datas) is np.ndarray:
             bkg_rms = scarlet.wavelet.mad_wavelet(datas)
-
-        else:
-            bkg_rms = []
-            for data in datas:
-                bkg_rms.append(scarlet.wavelet.mad_wavelet(data.images))
-                
     else:
-        bkg_rms = None
-
+        bkg_rms = []
+        for data in datas:
+            bkg_rms.append(scarlet.wavelet.mad_wavelet(data.images))
+    
     return catalog, bkg_rms
 
 
@@ -407,8 +400,6 @@ def _plot_scene(starlet_sources, observation, norm, catalog, show_model=True, sh
         if add_ellipses == True:
     
             for k, src in enumerate(catalog):
-                print("ELLIPSES")
-                print(k, src)
 
                 # See https://sextractor.readthedocs.io/en/latest/Position.html
                 e = Ellipse(xy=(src['x'], src['y']),
@@ -431,10 +422,10 @@ def _plot_scene(starlet_sources, observation, norm, catalog, show_model=True, sh
 
 def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
                 subtract_background=False, max_chi2=5000, morph_thresh=0.1,
-                starlet_thresh=0.1, lvl=5,
+                starlet_thresh=0.1, lvl=5, lvl_segmask=2,
                 segmentation_map=True, plot_wavelet=False, plot_likelihood=True,
                 plot_scene=False, plot_sources=False, add_ellipses=True,
-                add_labels=False,add_boxes=False):
+                add_labels=False, add_boxes=False):
     
     """ Run P. Melchior's scarlet (https://github.com/pmelchior/scarlet) implementation 
     for source separation. This function will create diagnostic plots, a source detection catalog, 
@@ -472,13 +463,12 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     norm = scarlet.display.AsinhMapping(minimum=0, stretch=stretch, Q=Q)
         
     # Generate source catalog using wavelets
-    catalog, bg_rms_hsc = make_catalog(datas, lvl, wave=True, subtract_background=subtract_background)
-    # If image is already background subtracted, bg_rms_hsc will be None
-    if bg_rms_hsc is None:
-        weights = np.ones_like(datas)
-    else:
-        # Set weights to all ones
+    catalog, bg_rms_hsc = make_catalog(datas, lvl, wave=True)
+    # If image is already background subtracted, weights are set to 1
+    if subtract_background:
         weights = np.ones_like(datas) / (bg_rms_hsc**2)[:, None, None]
+    else:
+        weights = np.ones_like(datas)
     
     print("Source catalog found ", len(catalog), "objects")
     
@@ -509,9 +499,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     
     # Loop through detections in catalog
     starlet_sources = []
-    print("CATALOG", catalog)
     for k, src in enumerate(catalog):
-        print(k,src, "\n")
 
         # Is the source compact relative to the PSF?
         if spread[k] < 1:
@@ -531,9 +519,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     print("Computing residuals.")
 
     # Compute reduced chi^2 for each rendered sources
-    print("STARLET_SOURCES")
     for k, src in enumerate(starlet_sources):
-        print(k,src, "\n")
 
         model = src.get_model(frame=model_frame)
         model = observation.render(model)
@@ -549,12 +535,6 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
                                                        (catalog["y"][k], catalog["x"][k]), observation,
                                                        thresh=morph_thresh, starlet_thresh=starlet_thresh,
                                                        full=False)
-
-        #plt.figure(figsize=(5,5))
-        #model_rgb = scarlet.display.img_to_rgb(res, norm=norm)
-        #plt.title(chi2s[k])
-        #plt.imshow(model_rgb)
-        #plt.show()
 
     # If any chi2 residuals are flagged, re-fit the blend with a more complex model
     if np.any(chi2s > max_chi2):
@@ -582,7 +562,8 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         chi2s[k] = np.sum(res**2)
         
         # Run sep
-        cat, _ = make_catalog(model, 1, wave=False, subtract_background=False, segmentation_map=segmentation_map)
+        #model_bg = np.array([model[i,:,:] + bg_rms_hsc[i] for i in range(len(bg_rms_hsc))])
+        cat, _ = make_catalog(model, lvl_segmask, wave=False, segmentation_map=segmentation_map)
         if segmentation_map == True:
             cat, mask = cat
         # If more than 1 source is detected for some reason (e.g. artifacts)
