@@ -81,8 +81,7 @@ def get_hsc_data(dirpath, filters=['g','r','i'], tract=10054, patch=[0,0], coord
     filters = [f.upper() for f in filters]
     
     if coord is not None:
-        import warnings
-        warnings.warn("Overriding tract/patch info and looking for HSC file at requested coordinates.")
+        print("Overriding tract/patch info and looking for HSC file at requested coordinates.")
         tract, patch = get_tract_patch_from_coord(coord)
         
     datas = []
