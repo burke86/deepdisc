@@ -422,7 +422,7 @@ def _plot_scene(starlet_sources, observation, norm, catalog, show_model=True, sh
 
 def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
                 subtract_background=False, max_chi2=5000, morph_thresh=0.1,
-                starlet_thresh=0.1, lvl=5, lvl_segmask=2,
+                starlet_thresh=0.1, lvl=5, lvl_segmask=2, maskthresh=10,
                 segmentation_map=True, plot_wavelet=False, plot_likelihood=True,
                 plot_scene=False, plot_sources=False, add_ellipses=True,
                 add_labels=False, add_boxes=False):
@@ -563,23 +563,29 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         
         # Run sep
         #model_bg = np.array([model[i,:,:] + bg_rms_hsc[i] for i in range(len(bg_rms_hsc))])
-        cat, _ = make_catalog(model, lvl_segmask, wave=False, segmentation_map=segmentation_map)
-        if segmentation_map == True:
-            cat, mask = cat
+        cat, _ = make_catalog(model, lvl_segmask, wave=False, segmentation_map=False, maskthresh=maskthresh)
+        #if segmentation_map == True:
+        #    cat, mask = cat
         # If more than 1 source is detected for some reason (e.g. artifacts)
         if len(cat) > 1:
             # keep the brightest
             idx = np.argmax([c['cflux'] for c in cat])
             cat = cat[idx]
-            if segmentation_map == True:
-                mask = mask[idx]
+        #    if segmentation_map == True:
+        #        mask = mask[idx]
         # If failed to detect model source
         if len(cat) == 0:
             # Fill with nan
             cat = [np.full(catalog[0].shape, np.nan, dtype=catalog.dtype)]
         # Append to full catalog
         if segmentation_map == True:
+            # For some reason sep doesn't like these images, so do the segmask ourselves for now
+            model_det = np.array(model[0,:,:])
+            mask = np.zeros_like(model_det)
+            mask[model_det>maskthresh] = 1
             segmentation_masks.append(mask)
+            #plt.imshow(mask)
+            #plt.show()
         catalog_deblended.append(cat)
         
     # Combine catalog named array

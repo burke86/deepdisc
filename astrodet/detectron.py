@@ -14,6 +14,48 @@ from detectron2.structures import BoxMode
 # register_coco_instances("my_dataset_train", {}, "json_annotation_train.json", "path/to/image/dir")
 # register_coco_instances("my_dataset_val", {}, "json_annotation_val.json", "path/to/image/dir")
 
+def plot_stretch_Q(dataset_dicts, num=0, stretches=[0.01,0.1,0.5,1], Qs=[1,10,5,100]):
+    """
+    Plots different normalizations of your image using the stretch, Q parameters. 
+    
+    Parameters
+    ----------
+    dataset_dicts : dict
+        detectron dataset dictionary
+    num : int
+        Dataset number/index to use
+    stretches : array
+        List of stretch params you want to permutate through to find optimal image normalization.
+        Default is [0.01, 0.1, 0.5, 1]
+    Qs : array
+        List of Q params you want to permutate through to find optimal image normalization.
+        Default is [1, 10, 5, 100]
+        
+    Code adapted from:
+        https://pmelchior.github.io/scarlet/tutorials/display.html
+        
+    Returns
+    -------
+    fig : Figure object
+    
+    """
+    
+    d = dataset_dicts[num]
+    
+    fig, ax = plt.subplots(len(stretches), len(Qs), figsize=(9,9))
+    for i, stretch in enumerate(stretches):
+        for j, Q in enumerate(Qs):
+            img = read_image(d, normalize="lupton", stretch=stretch, Q=Q)
+            # Scale the RGB channels for the image
+            visualizer = Visualizer(img/65000*255, metadata=astro_metadata)
+            out = visualizer.draw_dataset_dict(d)
+            ax[i][j].imshow(out.get_image(), origin='lower')
+            ax[i][j].set_title("Stretch {}, Q {}".format(stretch, Q))
+            ax[i][j].axis('off')
+            
+    return fig
+
+
 def get_astro_dicts(filename_dict):
     
     """
