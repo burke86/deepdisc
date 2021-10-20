@@ -264,7 +264,7 @@ def make_catalog(datas, lvl=4, wave=True, segmentation_map=False, maskthresh=10.
     return catalog, bkg_rms
 
 
-def fit_scarlet_blend(starlet_sources, observation, max_iters=200, e_rel=1e-4, plot_likelihood=True):
+def fit_scarlet_blend(starlet_sources, observation, max_iters=15, e_rel=1e-4, plot_likelihood=True):
     """
     Creates a detection catalog by combining low and high resolution data
     
@@ -420,7 +420,7 @@ def _plot_scene(starlet_sources, observation, norm, catalog, show_model=True, sh
 
 def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
                 subtract_background=False, max_chi2=5000, morph_thresh=0.1,
-                starlet_thresh=0.1, lvl=5, lvl_segmask=2, maskthresh=10,
+                starlet_thresh=0.1, lvl=5, lvl_segmask=2, maskthresh=0.025,
                 segmentation_map=True, plot_wavelet=False, plot_likelihood=True,
                 plot_scene=False, plot_sources=False, add_ellipses=True,
                 add_labels=False, add_boxes=False):
@@ -552,12 +552,12 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
 
         model = src.get_model(frame=model_frame)
         model = observation.render(model)
-        res = datas - model
+        #res = datas - model
 
         # Compute in bbox only
         model = src.bbox.extract_from(model)
-        res = src.bbox.extract_from(res)
-        chi2s[k] = np.sum(res**2)
+        #res = src.bbox.extract_from(res)
+        #chi2s[k] = np.sum(res**2)
         
         # Run sep
         #model_bg = np.array([model[i,:,:] + bg_rms_hsc[i] for i in range(len(bg_rms_hsc))])
