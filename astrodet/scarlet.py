@@ -419,7 +419,7 @@ def _plot_scene(starlet_sources, observation, norm, catalog, show_model=True, sh
 
 
 def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
-                subtract_background=False, max_chi2=5000, morph_thresh=0.1,
+                subtract_background=False, max_chi2=5000, max_iters=15, morph_thresh=0.1,
                 starlet_thresh=0.1, lvl=5, lvl_segmask=2, maskthresh=0.025,
                 segmentation_map=True, plot_wavelet=False, plot_likelihood=True,
                 plot_scene=False, plot_sources=False, add_ellipses=True,
@@ -512,7 +512,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         starlet_sources.append(new_source)
             
     # Fit scarlet blend
-    starlet_blend, logL = fit_scarlet_blend(starlet_sources, observation, plot_likelihood=plot_likelihood)
+    starlet_blend, logL = fit_scarlet_blend(starlet_sources, observation, max_iters=max_iters, plot_likelihood=plot_likelihood)
     
     print("Computing residuals.")
 
@@ -539,7 +539,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         
         print("Re-fitting with Starlet models for poorly-fit sources.")
         
-        starlet_blend, logL = fit_scarlet_blend(starlet_sources, observation, plot_likelihood=plot_likelihood)
+        starlet_blend, logL = fit_scarlet_blend(starlet_sources, observation, max_iters=max_iters, plot_likelihood=plot_likelihood)
         
         
     # Extract the deblended catalog and update the chi2 residuals
@@ -552,15 +552,10 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
 
         model = src.get_model(frame=model_frame)
         model = observation.render(model)
-        #res = datas - model
-
         # Compute in bbox only
         model = src.bbox.extract_from(model)
-        #res = src.bbox.extract_from(res)
-        #chi2s[k] = np.sum(res**2)
         
         # Run sep
-        #model_bg = np.array([model[i,:,:] + bg_rms_hsc[i] for i in range(len(bg_rms_hsc))])
         cat, _ = make_catalog(model, lvl_segmask, wave=False, segmentation_map=False, maskthresh=maskthresh)
         #if segmentation_map == True:
         #    cat, mask = cat
