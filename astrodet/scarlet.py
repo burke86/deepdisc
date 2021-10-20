@@ -14,7 +14,7 @@ from matplotlib.patches import Ellipse
 from astropy.wcs import WCS
 
 def write_scarlet_results(datas, observation, starlet_sources, model_frame, catalog_deblended,
-                          segmentation_masks, dirpath, filters, tract, patch): 
+                          segmentation_masks, dirpath, filters, s): 
     """
     Saves images in each channel, with headers for each source in image,
     such that the number of headers = number of sources detected in image.
@@ -37,16 +37,14 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         Path to HSC image file directory
     filters : list 
         A list of filters for your images. Default is ['g', 'r', 'i'].    
-    tract : Astropy HDUData
-        Tract ID
-    patch : [int, int]
-        Patch ID tuple
+    s : str
+        File basename string
 
     
     Returns
     -------
     filename : dict
-        dictionary of all paths to the saved scarlet files for the particular patch, tract.
+        dictionary of all paths to the saved scarlet files for the particular dataset.
         Saved image and model files for each filter, and one total segmentation mask file for all filters.
     """
     
@@ -118,10 +116,10 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         save_model_hdul = fits.HDUList([model_primary, *model_hdul])
 
         # Save list of filenames in dict for each band
-        filenames[f'img_{f}'] = os.path.join(dirpath, f'calexp-HSC-{f}-{tract}-{patch[0]},{patch[1]}_scarlet_img.fits')
+        filenames[f'img_{f}'] = os.path.join(dirpath, f'{f}-{s}_scarlet_img.fits')
         save_img_hdul.writeto(filenames[f'img_{f}'], overwrite=True)
         
-        filenames[f'model_{f}'] = os.path.join(dirpath, f'calexp-HSC-{f}-{tract}-{patch[0]},{patch[1]}_scarlet_model.fits')
+        filenames[f'model_{f}'] = os.path.join(dirpath, f'{f}-{s}_scarlet_model.fits')
         save_model_hdul.writeto(filenames[f'model_{f}'], overwrite=True)
         
         
@@ -142,7 +140,7 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         save_segmask_hdul = fits.HDUList([segmask_primary, *segmask_hdul])
         
         # Save list of filenames in dict for each band
-        filenames['segmask'] = os.path.join(dirpath, f'calexp-HSC-{tract}-{patch[0]},{patch[1]}_scarlet_segmask.fits')
+        filenames['segmask'] = os.path.join(dirpath, f'{f}-{s}_scarlet_segmask.fits')
         save_segmask_hdul.writeto(filenames['segmask'], overwrite=True)
 
     return filenames
@@ -234,7 +232,7 @@ def make_catalog(datas, lvl=4, wave=True, segmentation_map=False, maskthresh=10.
     if np.size(detect_image.shape) == 4:
         if wave:
             # Wavelet detection in the first three levels
-            wave_detect = Starlet(detect_image.mean(axis=0), lvl=5).coefficients
+            wave_detect = scarlet.Starlet(detect_image.mean(axis=0), lvl=5).coefficients
             wave_detect[:, -1, :, :] = 0
             detect = scarlet.Starlet(coefficients=wave_detect).image
         else:
