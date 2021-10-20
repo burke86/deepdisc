@@ -556,7 +556,11 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         model = src.bbox.extract_from(model)
         
         # Run sep
-        cat, _ = make_catalog(model, lvl_segmask, wave=False, segmentation_map=False, maskthresh=maskthresh)
+        try:
+            cat, _ = make_catalog(model, lvl_segmask, wave=False, segmentation_map=False, maskthresh=maskthresh)
+        except:
+            print(f'Exception with source {k}')
+            cat = []
         #if segmentation_map == True:
         #    cat, mask = cat
         # If more than 1 source is detected for some reason (e.g. artifacts)
