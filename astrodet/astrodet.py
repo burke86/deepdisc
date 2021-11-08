@@ -123,10 +123,11 @@ class AstroTrainer(SimpleTrainer):
             print("Iteration: ", self.iterCount, " time: ", data_time," loss: ",losses)
             
             
-#Note: this function is copied from COCOeval_opt
+#Note: this class is copied from COCOeval_opt
 # I put it here to output things during function call
-#refer to line 269
+# the original structure is not changed
 class COCOeval_opt_custom(COCOeval_opt):
+    #this function is override in order to put in some output commands
     def evaluate_custom(self):
         '''
         Run per image evaluation on given images and store results (a list of dict) in self.evalImgs
@@ -168,6 +169,8 @@ class COCOeval_opt_custom(COCOeval_opt):
         self._paramsEval = copy.deepcopy(self.params)
         toc = time.time()
         print('DONE (t={:0.2f}s).'.format(toc-tic))
+        
+    #this function is override in order to put in some output commands
     def accumulate_custom(self, p = None):
         '''
         Accumulate per image evaluation results and store the result in self.eval
@@ -282,7 +285,7 @@ class COCOeval_opt_custom(COCOeval_opt):
 
 
 
-"""I override this function just to set maxDets to 200"""
+#I override this function just to set maxDets to 200
 def _evaluate_predictions_on_coco(
         coco_gt, coco_results, iou_type, kpt_oks_sigmas=None, use_fast_impl=True, img_ids=None
     ):
@@ -332,9 +335,20 @@ def _evaluate_predictions_on_coco(
         return coco_eval
     
 
-    
+#I override this class in order to call the custom function above
 class COCOEvaluatorRecall(COCOEvaluator):
-    """I override this class in order to call the custom function above"""
+
+    """
+    Evaluate AR for object proposals, AP for instance detection/segmentation, AP
+    for keypoint detection outputs using COCO's metrics.
+    See http://cocodataset.org/#detection-eval and
+    http://cocodataset.org/#keypoints-eval to understand its metrics.
+    The metrics range from 0 to 100 (instead of 0 to 1), where a -1 or NaN means
+    the metric cannot be computed (e.g. due to no predictions made).
+
+    In addition to COCO, this evaluator is able to support any bounding box detection,
+    instance segmentation, or keypoint detection dataset.
+    """
     def _eval_predictions(self, predictions, img_ids=None):
         
         #Evaluate predictions. Fill self._results with the metrics of the tasks.
