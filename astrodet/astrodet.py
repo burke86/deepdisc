@@ -65,6 +65,32 @@ from detectron2.utils.logger import create_small_table
 from detectron2.structures import BoxMode
 import glob
 from astropy.io import fits
+
+def set_mpl_style():
+    
+    """Function to set MPL style"""
+    
+    fsize = 15
+    tsize = 18
+    tdir = 'in'
+    major = 5.0
+    minor = 3.0
+    lwidth = 1.8
+    lhandle = 2.0
+    plt.style.use('default')
+    plt.rcParams['text.usetex'] = False
+    plt.rcParams['font.size'] = fsize
+    plt.rcParams['legend.fontsize'] = tsize
+    plt.rcParams['xtick.direction'] = tdir
+    plt.rcParams['ytick.direction'] = tdir
+    plt.rcParams['xtick.major.size'] = major
+    plt.rcParams['xtick.minor.size'] = minor
+    plt.rcParams['ytick.major.size'] = 5.0
+    plt.rcParams['ytick.minor.size'] = 3.0
+    plt.rcParams['axes.linewidth'] = lwidth
+    plt.rcParams['legend.handlelength'] = lhandle
+    
+    return
     
     
 """Note:SaveHook is in charge of saving the trained model"""
@@ -108,6 +134,7 @@ class AstroTrainer(SimpleTrainer):
         data = next(self._data_loader_iter)
         # Note: in training mode, model() returns loss
         loss_dict = self.model(data)
+        print(loss_dict)
         if isinstance(loss_dict, torch.Tensor):
             losses = loss_dict
             loss_dict = {"total_loss": loss_dict}
