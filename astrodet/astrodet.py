@@ -61,15 +61,10 @@ from detectron2.structures import Boxes, BoxMode, pairwise_iou
 from detectron2.utils.file_io import PathManager
 from detectron2.utils.logger import create_small_table
 
-<<<<<<< HEAD
-=======
+
 from detectron2.structures import BoxMode
 import glob
 from astropy.io import fits
-
->>>>>>> 714836017c43f2ce130047796951ebcba5f29c98
-def init():
-    print("toolKit Loaded!")
     
     
 """Note:SaveHook is in charge of saving the trained model"""
@@ -125,19 +120,16 @@ class AstroTrainer(SimpleTrainer):
         if self.iterCount % self.period == 0:
             print("Iteration: ", self.iterCount, " time: ", data_time," loss: ",losses)
             
-            
-<<<<<<< HEAD
-#Note: this function is copied from COCOeval_opt
-# I put it here to output things during function call
-#refer to line 269
+
 class COCOeval_opt_custom(COCOeval_opt):
-=======
-#Note: this class is copied from COCOeval_opt
-# I put it here to output things during function call
-# the original structure is not changed
-class COCOeval_opt_custom(COCOeval_opt):
-    #this function is override in order to put in some output commands
->>>>>>> 714836017c43f2ce130047796951ebcba5f29c98
+    '''
+    YL: : this function is copied from COCOeval_opt
+    I put it here to output things during function call
+    refer to line 269
+
+    YL:  Override in order to put in some output commands
+    '''
+    
     def evaluate_custom(self):
         '''
         Run per image evaluation on given images and store results (a list of dict) in self.evalImgs
@@ -179,13 +171,11 @@ class COCOeval_opt_custom(COCOeval_opt):
         self._paramsEval = copy.deepcopy(self.params)
         toc = time.time()
         print('DONE (t={:0.2f}s).'.format(toc-tic))
-<<<<<<< HEAD
-=======
-        
-    #this function is override in order to put in some output commands
->>>>>>> 714836017c43f2ce130047796951ebcba5f29c98
+
     def accumulate_custom(self, p = None):
         '''
+        YL: Override in order to put in some output commands
+        
         Accumulate per image evaluation results and store the result in self.eval
         :param p: input params for evaluation
         :return: None
@@ -294,18 +284,11 @@ class COCOeval_opt_custom(COCOeval_opt):
         print('DONE (t={:0.2f}s).'.format( toc-tic))
 
 
-
-
-
-
-<<<<<<< HEAD
-"""I override this function just to set maxDets to 200"""
-=======
-#I override this function just to set maxDets to 200
->>>>>>> 714836017c43f2ce130047796951ebcba5f29c98
 def _evaluate_predictions_on_coco(
         coco_gt, coco_results, iou_type, kpt_oks_sigmas=None, use_fast_impl=True, img_ids=None
     ):
+        """YL: Override this function just to set maxDets to 200"""
+
         
         #Evaluate the coco results using COCOEval API.
         assert len(coco_results) > 0
@@ -352,15 +335,11 @@ def _evaluate_predictions_on_coco(
         return coco_eval
     
 
-<<<<<<< HEAD
-    
-class COCOEvaluatorRecall(COCOEvaluator):
-    """I override this class in order to call the custom function above"""
-=======
-#I override this class in order to call the custom function above
 class COCOEvaluatorRecall(COCOEvaluator):
 
     """
+    YL: Override this class in order to call the custom function above
+    
     Evaluate AR for object proposals, AP for instance detection/segmentation, AP
     for keypoint detection outputs using COCO's metrics.
     See http://cocodataset.org/#detection-eval and
@@ -371,7 +350,6 @@ class COCOEvaluatorRecall(COCOEvaluator):
     In addition to COCO, this evaluator is able to support any bounding box detection,
     instance segmentation, or keypoint detection dataset.
     """
->>>>>>> 714836017c43f2ce130047796951ebcba5f29c98
     def _eval_predictions(self, predictions, img_ids=None):
         
         #Evaluate predictions. Fill self._results with the metrics of the tasks.
@@ -508,127 +486,8 @@ class COCOEvaluatorRecall(COCOEvaluator):
         results["results_per_category"] = precision_per_category
 
         results.update({"AP-" + name: ap for name, ap in results_per_category})
-<<<<<<< HEAD
         return results
-=======
-        return results
-def get_astro_dicts(img_dir):
     
-    
-    # It's weird to call this img_dir
-    #set_dirs = glob.glob('%s/set_*' % img_dir)
-    set_dirs = ['%s/set_%d' % (img_dir, i) for i in range(10)]
-    
-    dataset_dicts = []
-    
-    # Loop through each set
-    for idx, set_dir in enumerate(set_dirs):
-        record = {}
-        
-        mask_dir = os.path.join(img_dir, set_dir, "masks.fits")
-        filename = os.path.join(img_dir, set_dir, "img")
-        
-        # Open each FITS image
-        with fits.open(mask_dir, memmap=False, lazy_load_hdus=False) as hdul:
-            sources = len(hdul)
-            height, width = hdul[0].data.shape
-            data = [hdu.data/np.max(hdu.data) for hdu in hdul]
-            category_ids = [hdu.header["CLASS_ID"] for hdu in hdul]
-            
-        record["file_name"] = filename
-        record["image_id"] = idx
-        record["height"] = height
-        record["width"] = width
-        objs = []
-        
-        # Mask value thresholds per category_id
-        thresh = [0.005 if i == 1 else 0.08 for i in category_ids]
-        
-        # Generate segmentation masks
-        for i in range(sources):
-            image = data[i]
-            mask = np.zeros([height, width], dtype=np.uint8)
-            # Create mask from threshold
-            mask[:,:][image > thresh[i]] = 1
-            # Smooth mask
-            mask[:,:] = cv2.GaussianBlur(mask[:,:], (9,9), 2)
-            
-            # https://github.com/facebookresearch/Detectron/issues/100
-            mask_new, contours, hierarchy = cv2.findContours((mask).astype(np.uint8), cv2.RETR_TREE,
-                                                        cv2.CHAIN_APPROX_SIMPLE)
-            segmentation = []
-            for contour in contours:
-                x,y,w,h = cv2.boundingRect(contour)
-                contour = contour.flatten().tolist()
-                # segmentation.append(contour)
-                if len(contour) > 4:
-                    segmentation.append(contour)
-            # No valid countors
-            if len(segmentation) == 0:
-                continue
-            
-            # Add to dict
-            obj = {
-                "bbox": [x, y, w, h],
-                "area": w*h,
-                "bbox_mode": BoxMode.XYWH_ABS,
-                "segmentation": segmentation,
-                "category_id": category_ids[i] - 1,
-            }
-            objs.append(obj)
-            
-        record["annotations"] = objs
-        dataset_dicts.append(record)
-         
-    return dataset_dicts
-
-
-def read_image(filename, normalize='lupton', stretch=5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8):
-    # Read image
-    # TODO: Combine these files into one img_0, mask_0 ... in simulate.py
-    g = fits.getdata(os.path.join(filename+'_g.fits'), memmap=False)
-    r = fits.getdata(os.path.join(filename+'_r.fits'), memmap=False)
-    z = fits.getdata(os.path.join(filename+'_z.fits'), memmap=False)
-    
-    # Contrast scaling / normalization
-    I = (z + r + g)/3.0
-    
-    length, width = g.shape
-    image = np.empty([length, width, 3], dtype=dtype)
-    
-    # Options for contrast scaling
-    if normalize.lower() == 'lupton':
-        z = z*np.arcsinh(stretch*Q*(I - m))/(Q*I)
-        r = r*np.arcsinh(stretch*Q*(I - m))/(Q*I)
-        g = g*np.arcsinh(stretch*Q*(I - m))/(Q*I)
-    elif normalize.lower() == 'zscore':
-        Isigma = I*np.mean([np.nanstd(g), np.nanstd(r), np.nanstd(z)])
-        z = (z - np.nanmean(z) - m)/Isigma
-        r = (r - np.nanmean(r) - m)/Isigma
-        g = (g - np.nanmean(g) - m)/Isigma
-    elif normalize.lower() == 'linear':
-        z = (z - m)/I
-        r = (r - m)/I
-        g = (g - m)/I
-    else:
-        print('Normalize keyword not recognized.')
-
-    max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
-    # avoid saturation
-    r = r/max_RGB; g = g/max_RGB; z = z/max_RGB
-
-    # Rescale to 0-255 for dtype=np.uint8
-    max_dtype = np.iinfo(dtype).max
-    r = r*max_dtype
-    g = g*max_dtype
-    z = z*max_dtype
-
-    # 0-255 BGR image
-    image[:,:,0] = g
-    image[:,:,1] = r
-    image[:,:,2] = z
-    
-    return image
 
 def train_mapper(dataset_dict):
 
@@ -656,6 +515,7 @@ def train_mapper(dataset_dict):
         "image_id": dataset_dict["image_id"],
         "instances": utils.annotations_to_instances(annos, image.shape[1:])
     }
+
 def test_mapper(dataset_dict):
 
     dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
@@ -680,4 +540,3 @@ def test_mapper(dataset_dict):
         "image_id": dataset_dict["image_id"],
         "instances": utils.annotations_to_instances(annos, image.shape[1:])
     }
->>>>>>> 714836017c43f2ce130047796951ebcba5f29c98
