@@ -2,19 +2,21 @@ import sys, os
 import numpy as np
 import json
 import cv2
-
 from astropy.io import fits
 
 
 from detectron2.data import build_detection_train_loader
 from detectron2.structures import BoxMode
-
+#Yufeng Dec21 more import
+import matplotlib.pyplot as plt
+from detectron2.utils.visualizer import Visualizer
 # if your dataset is in COCO format, this cell can be replaced by the following three lines:
 # from detectron2.data.datasets import register_coco_instances
 # register_coco_instances("my_dataset_train", {}, "json_annotation_train.json", "path/to/image/dir")
 # register_coco_instances("my_dataset_val", {}, "json_annotation_val.json", "path/to/image/dir")
 
-def plot_stretch_Q(dataset_dicts, num=0, stretches=[0.01,0.1,0.5,1], Qs=[1,10,5,100]):
+#Yufeng Dec 21 add astro_metadata into parameters
+def plot_stretch_Q(dataset_dicts, astro_metadata, num=0, stretches=[0.01,0.1,0.5,1], Qs=[1,10,5,100]):
     """
     Plots different normalizations of your image using the stretch, Q parameters. 
     
@@ -138,8 +140,8 @@ def get_astro_dicts(filename_dict):
 
     return dataset_dicts
 
-
-def read_image(dataset_dict, normalize='lupton', stretch=5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint16):
+#Yufeng dec 23 dtype should be set to uint8, uint16 does not work
+def read_image(dataset_dict, normalize='lupton', stretch=5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8):
     # Read image    
     
     g = fits.getdata(os.path.join(dataset_dict['filename_G']), memmap=False)
