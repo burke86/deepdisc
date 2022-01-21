@@ -139,7 +139,13 @@ def get_astro_dicts(filename_dict):
         dataset_dicts.append(record)
 
     return dataset_dicts
-
+#Yufeng jan8 coco dataset dictionary needs 'file_name' key
+def get_astro_dicts_temp(filename_dict):
+    dataset_dicts = get_astro_dicts(filename_dict)
+    for dataset_dict in dataset_dicts:
+        #dataset_dict['file_name'] = dataset_dict['filename_I']
+        dataset_dict['file_name'] = 'lol123'
+    return dataset_dicts
 #Yufeng dec 23 dtype should be set to uint8, uint16 does not work
 def read_image(dataset_dict, normalize='lupton', stretch=5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8):
     # Read image    
