@@ -16,7 +16,7 @@ from detectron2.utils.visualizer import Visualizer
 # register_coco_instances("my_dataset_val", {}, "json_annotation_val.json", "path/to/image/dir")
 
 #Yufeng Dec 21 add astro_metadata into parameters
-def plot_stretch_Q(dataset_dicts, astro_metadata, num=0, stretches=[0.01,0.1,0.5,1], Qs=[1,10,5,100]):
+def plot_stretch_Q(dataset_dicts, astro_metadata, num=0, stretches=[0.01,0.1,0.5,1], Qs=[1,10,5,100], ceil_percentile=99.5):
     """
     Plots different normalizations of your image using the stretch, Q parameters. 
     
@@ -47,108 +47,20 @@ def plot_stretch_Q(dataset_dicts, astro_metadata, num=0, stretches=[0.01,0.1,0.5
     fig, ax = plt.subplots(len(stretches), len(Qs), figsize=(9,9))
     for i, stretch in enumerate(stretches):
         for j, Q in enumerate(Qs):
-            img = read_image(d, normalize="lupton", stretch=stretch, Q=Q)
+            img = read_image(d, normalize="lupton", stretch=stretch, Q=Q, ceil_percentile=ceil_percentile)
             # Scale the RGB channels for the image
-            visualizer = Visualizer(img/65000*255, metadata=astro_metadata)
+            visualizer = Visualizer(img, metadata=astro_metadata)
             out = visualizer.draw_dataset_dict(d)
             ax[i][j].imshow(out.get_image(), origin='lower')
-            ax[i][j].set_title("Stretch {}, Q {}".format(stretch, Q))
+            ax[i][j].set_title("Stretch {}, Q {}".format(stretch, Q), fontsize=10)
             ax[i][j].axis('off')
             
     return fig
 
 
-def get_astro_dicts(filename_dict):
-    
-    """
-    This can needs to be customized to your trianing data format
-    
-    """
-        
-    dataset_dicts = []
-    filters = list(filename_dict.keys())
-    f = filename_dict['filters'][0] # Pick the 1st filter for now
-    
-    # Filename loop
-    for idx, (filename_img, filename_mask) in enumerate(zip(filename_dict[f]['img'], filename_dict[f]['mask'])):
-        record = {}
-
-        # Open FITS image of first filter (each should have same shape)
-        with fits.open(filename_img, memmap=False, lazy_load_hdus=False) as hdul:
-            height, width = hdul[0].data.shape
-            
-        # Open each FITS mask image
-        with fits.open(filename_mask, memmap=False, lazy_load_hdus=False) as hdul:
-            hdul = hdul[1:]
-            sources = len(hdul)
-            # Normalize data
-            data = [hdu.data for hdu in hdul]
-            category_ids = [hdu.header["CAT_ID"] for hdu in hdul]
-            ellipse_pars = [hdu.header["ELL_PARM"] for hdu in hdul]
-            bbox = [list(map(int, hdu.header["BBOX"].split(','))) for hdu in hdul]
-            area = [hdu.header["AREA"] for hdu in hdul]
-
-        # Add image metadata to record (should be the same for each filter)
-        for f in filename_dict['filters']:
-            record[f"filename_{f.upper()}"] = filename_dict[f]['img'][idx]
-        record["image_id"] = idx
-        record["height"] = height
-        record["width"] = width
-        objs = []
-
-        # Generate segmentation masks from model
-        for i in range(sources):
-            image = data[i]
-            # Why do we need this?
-            if len(image.shape) != 2:
-                continue
-            height_mask, width_mask = image.shape
-            # Create mask from threshold
-            mask = data[i]
-            # Smooth mask
-            #mask = cv2.GaussianBlur(mask, (9,9), 2)
-            x,y,w,h = bbox[i] # (x0, y0, w, h)
-
-            # https://github.com/facebookresearch/Detectron/issues/100
-            mask_new, contours, hierarchy = cv2.findContours((mask).astype(np.uint8), cv2.RETR_TREE,
-                                                        cv2.CHAIN_APPROX_SIMPLE)
-            segmentation = []
-            for contour in contours:
-                # contour = [x1, y1, ..., xn, yn]
-                contour = contour.flatten()
-                if len(contour) > 4:
-                    contour[::2] += (x-w//2)
-                    contour[1::2] += (y-h//2)
-                    segmentation.append(contour.tolist())
-            # No valid countors
-            if len(segmentation) == 0:
-                continue
-
-            # Add to dict
-            obj = {
-                "bbox": [x-w//2, y-h//2, w, h],
-                "area": w*h,
-                "bbox_mode": BoxMode.XYWH_ABS,
-                "segmentation": segmentation,
-                "category_id": category_ids[i],
-                "ellipse_pars": ellipse_pars[i]
-            }
-            objs.append(obj)
-
-        record["annotations"] = objs
-        dataset_dicts.append(record)
-
-    return dataset_dicts
-#Yufeng jan8 coco dataset dictionary needs 'file_name' key
-def get_astro_dicts_temp(filename_dict):
-    dataset_dicts = get_astro_dicts(filename_dict)
-    for dataset_dict in dataset_dicts:
-        #dataset_dict['file_name'] = dataset_dict['filename_I']
-        dataset_dict['file_name'] = 'lol123'
-    return dataset_dicts
 #Yufeng dec 23 dtype should be set to uint8, uint16 does not work
 def read_image(dataset_dict, normalize='lupton', stretch=5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8):
-    # Read image    
+    # Read image
     
     g = fits.getdata(os.path.join(dataset_dict['filename_G']), memmap=False)
     r = fits.getdata(os.path.join(dataset_dict['filename_R']), memmap=False)

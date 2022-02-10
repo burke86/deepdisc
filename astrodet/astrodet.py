@@ -100,6 +100,8 @@ class SaveHook(HookBase):
         self.output_name = name
     def after_train(self):
         self.trainer.checkpointer.save(self.output_name) # Note: Set the name of the output model here
+        
+        
 class AstroTrainer(SimpleTrainer):
     def __init__(self, model, data_loader, optimizer, cfg):
         super().__init__(model, data_loader, optimizer)
@@ -542,6 +544,7 @@ def train_mapper(dataset_dict):
         "image_id": dataset_dict["image_id"],
         "instances": utils.annotations_to_instances(annos, image.shape[1:])
     }
+
 
 def test_mapper(dataset_dict):
 
