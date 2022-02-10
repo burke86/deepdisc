@@ -134,7 +134,7 @@ class AstroTrainer(SimpleTrainer):
         data = next(self._data_loader_iter)
         # Note: in training mode, model() returns loss
         loss_dict = self.model(data)
-        print(loss_dict)
+        #print(loss_dict)
         if isinstance(loss_dict, torch.Tensor):
             losses = loss_dict
             loss_dict = {"total_loss": loss_dict}
