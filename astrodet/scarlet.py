@@ -530,8 +530,8 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         if chi2s[k] > max_chi2:
             starlet_sources[k] = scarlet.StarletSource(model_frame,
                                                        (catalog["y"][k], catalog["x"][k]), observation,
-                                                       thresh=morph_thresh, starlet_thresh=starlet_thresh,
-                                                       full=False)
+                                                       thresh=morph_thresh, starlet_thresh=starlet_thresh
+                                                       )
 
     # If any chi2 residuals are flagged, re-fit the blend with a more complex model
     if np.any(chi2s > max_chi2):
