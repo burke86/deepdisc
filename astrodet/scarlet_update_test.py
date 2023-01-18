@@ -14,6 +14,7 @@ from matplotlib.patches import Ellipse
 
 from astropy.wcs import WCS
 from scipy.stats import median_abs_deviation as mad
+from astropy.stats import median_absolute_deviation as astromad
 
 
 def write_scarlet_results(datas, observation, starlet_sources, model_frame, catalog_deblended,
@@ -276,6 +277,8 @@ def mad_wavelet_own(image):
     """ image: Median absolute deviation of the first wavelet scale.
     (WARNING: sorry to disapoint, this is not a wavelet for mad scientists)
 
+    Have to use astropy mad as scipy mad does not like ignoring NaN and computing over multiple axes
+
     Parameters
     ----------
     image: array
@@ -285,11 +288,12 @@ def mad_wavelet_own(image):
     mad: array
         median absolute deviation for each image in the cube
     """
-    
+
     #Scarlet seems to no longer take ndarrays, so have to go through each channel
     #Scale =1/1.4826 to replicate older scipy MAD behavior
-    sigma = mad(scarlet.Starlet.from_image(image, scales=2).coefficients[0, ...], axis=(-2, -1),scale=1/1.4826)
-    return sigma
+    scale=1/1.4826
+    sigma = astromad(scarlet.Starlet.from_image(image, scales=2).coefficients[0, ...], axis=(-2,-1),ignore_nan=True)
+    return sigma/scale
 
 
 def fit_scarlet_blend(starlet_sources, observation, max_iters=15, e_rel=1e-4, plot_likelihood=True):
@@ -498,10 +502,6 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     
     print("Source catalog found ", len(catalog), "objects")
     
-    if len(catalog)>200:
-        print('Too many sources for testing, skipping image')
-        return [None]*7
-    
     # Plot wavelet transform at different scales
     if plot_wavelet == True:
         _plot_wavelet(datas)
@@ -632,4 +632,4 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
                                      add_boxes=add_boxes)
         plt.show()
          
-    return observation, starlet_sources, model_frame, catalog, catalog_deblended, segmentation_masks, logL
+    return observation, starlet_sources, model_frame, catalog, catalog_deblended, segmentation_masks
