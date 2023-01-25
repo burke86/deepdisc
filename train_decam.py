@@ -173,18 +173,18 @@ def read_image(filename, normalize='lupton', stretch=5, Q=10, m=0, ceil_percenti
         g = g*np.arcsinh(stretch*Q*(I - m))/(Q*I)
     
     elif normalize.lower() == 'zscore':
-        Isigma = I*np.mean([np.nanstd(g), np.nanstd(r), np.nanstd(z)])
-        z = (z - np.nanmean(z) - m)/Isigma
-        r = (r - np.nanmean(r) - m)/Isigma
-        g = (g - np.nanmean(g) - m)/Isigma
+        #Isigma = I*np.mean([np.nanstd(g), np.nanstd(r), np.nanstd(z)])
+        #z = (z - np.nanmean(z) - m)/Isigma
+        #r = (r - np.nanmean(r) - m)/Isigma
+        #g = (g - np.nanmean(g) - m)/Isigma
         
-        #zsigma = np.nanstd(z)
-        #rsigma = np.nanstd(r)
-        #gsigma = np.nanstd(g)
+        zsigma = np.nanstd(z)
+        rsigma = np.nanstd(r)
+        gsigma = np.nanstd(g)
         
-        #z = A*(z - np.nanmean(z) - m)/zsigma
-        #r = A*(r - np.nanmean(r) - m)/rsigma
-        #g = A*(g - np.nanmean(g) - m)/gsigma
+        z = A*(z - np.nanmean(z) - m)/zsigma
+        r = A*(r - np.nanmean(r) - m)/rsigma
+        g = A*(g - np.nanmean(g) - m)/gsigma
         
     elif normalize.lower() == 'linear':
         z = (z - m)/I
@@ -193,15 +193,15 @@ def read_image(filename, normalize='lupton', stretch=5, Q=10, m=0, ceil_percenti
     else:
         print('Normalize keyword not recognized.')
 
-    max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
+    #max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
     # avoid saturation
-    r = r/max_RGB; g = g/max_RGB; z = z/max_RGB
+    #r = r/max_RGB; g = g/max_RGB; z = z/max_RGB
 
     # Rescale to 0-255 for dtype=np.uint8
-    max_dtype = np.iinfo(dtype).max
-    r = r*max_dtype
-    g = g*max_dtype
-    z = z*max_dtype
+    #max_dtype = np.iinfo(dtype).max
+    #r = r*max_dtype
+    #g = g*max_dtype
+    #z = z*max_dtype
 
     # 0-255 RGB image
     image[:,:,0] = z # R
@@ -371,7 +371,7 @@ def main(dirpath,dataset_names,train_head,output_name,cfgfile,args):
     # gradient clipping type; for L-inf, please specify .inf
     cfg.SOLVER.CLIP_GRADIENTS.NORM_TYPE = 5.0
 
-    # iterations for 15,25,35,50 epochs
+    # itertions for 15,25,35,50 epochs
     epoch = int(tl/cfg.SOLVER.IMS_PER_BATCH)
     e1=epoch*15
     e2=epoch*10

@@ -698,7 +698,7 @@ def _evaluate_predictions_on_coco(
                 "They have to agree with each other. For meaning of OKS, please refer to "
                 "http://cocodataset.org/#keypoints-eval."
             )
-        coco_eval.params.maxDets = [1,10,200] # by default it is [1,10,100], our datasets have more than 100 instances
+        coco_eval.params.maxDets = [1,10,500] # by default it is [1,10,100], our datasets have more than 100 instances
         coco_eval.evaluate_custom()
         coco_eval.accumulate_custom()
         coco_eval.summarize()

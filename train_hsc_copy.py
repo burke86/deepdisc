@@ -199,7 +199,7 @@ def get_data_from_json(file):
     # Opening JSON file
     with open(file, 'r') as f:
         data = json.load(f)
-    return data[0:100]
+    return data
 
 def read_image(filenames, normalize='lupton', stretch=5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8, A=1e4):
     # Read image
@@ -245,7 +245,7 @@ def read_image(filenames, normalize='lupton', stretch=5, Q=10, m=0, ceil_percent
     else:
         print('Normalize keyword not recognized.')
 
-    #max_RGB = np.nanpercentile([z, r, g], ceil_percentile) * 2
+    #max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
     # avoid saturation
     #r = r/max_RGB; g = g/max_RGB; z = z/max_RGB
 
@@ -256,9 +256,9 @@ def read_image(filenames, normalize='lupton', stretch=5, Q=10, m=0, ceil_percent
     #z = z*max_dtype
 
     # 0-255 RGB image
-    image[:,:,0] = z # R
-    image[:,:,1] = r # G
-    image[:,:,2] = g # B
+    #image[:,:,0] = z # R
+    #image[:,:,1] = r # G
+    #image[:,:,2] = g # B
     
     return image
 
@@ -285,7 +285,7 @@ def train_mapper(dataset_dict):
     dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
     filenames=[dataset_dict['filename_G'],dataset_dict['filename_R'],dataset_dict['filename_I']]
 
-    image = read_image(filenames, normalize='zscore', dtype=np.int16)
+    image = read_image(filenames, normalize='zscore', dtype=np.int16, A=1e3)
     #image = rescale_image(dataset_dict["file_name"], **read_image_args)
     
     #augs = T.AugmentationList([
@@ -303,13 +303,15 @@ def train_mapper(dataset_dict):
         T.RandomRotation([-90, 90, 180], sample_style='choice'),
         T.RandomFlip(prob=0.5),
         T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
-        CustomAug(gaussblur,prob=1.0),
-        CustomAug(addelementwise,prob=1.0)
+        #CustomAug(gaussblur,prob=1.0),
+        #CustomAug(addelementwise,prob=1.0)
         #CustomAug(white),
         ],
         k=-1,
-        cropaug=T.RandomCrop('relative',(0.5,0.5))
+        #cropaug=T.RandomCrop('relative',(0.5,0.5))
+        cropaug=None
     )
+    
     # Data Augmentation
     auginput = T.AugInput(image)
     # Transformations to model shapes
@@ -327,20 +329,21 @@ def train_mapper(dataset_dict):
        # create the format that the model expects
         "image": image,
         "image_shaped": auginput.image,
-        "height": image.shape[0],
-        "width": image.shape[1],
+        "height": image.shape[1],
+        "width": image.shape[2],
         "image_id": dataset_dict["image_id"],
-        "instances": instances,
+        #"instances": instances,
+        "instances": utils.annotations_to_instances(annos, image.shape[1:])
     }
 
 def test_mapper(dataset_dict, **read_image_args):
 
     dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
     filenames=[dataset_dict['filename_G'],dataset_dict['filename_R'],dataset_dict['filename_I']]
-    image = read_image(filenames, normalize="zscore", dtype=np.int16)
+    image = read_image(filenames, normalize="zscore", dtype=np.int16, A=1e3)
     
     augs = T.AugmentationList([
-        T.RandomCrop('relative',(0.5,0.5))
+    #    T.RandomCrop('relative',(0.5,0.5))
     ])
     # Data Augmentation
     auginput = T.AugInput(image)
@@ -360,11 +363,12 @@ def test_mapper(dataset_dict, **read_image_args):
        # create the format that the model expects
         "image": image,
         "image_shaped": auginput.image,
-        "height": image.shape[0],
-        "width": image.shape[1],
+        "height": image.shape[1],
+        "width": image.shape[2],
         "image_id": dataset_dict["image_id"],
-        "instances": instances,
-        #"annotations": annos
+        #"instances": instances,
+        "instances": utils.annotations_to_instances(annos, image.shape[1:]),
+        "annotations": annos
     }
 
 
@@ -386,9 +390,9 @@ def main(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args):
 
 
     
-    trainfile=dirpath+dataset_names[0]+'_95cen.json'
-    testfile=dirpath+dataset_names[1]+'_95cen.json'
-    valfile=dirpath+dataset_names[2]+'.json'
+    trainfile=dirpath+dataset_names[0]+'.json'
+    testfile=dirpath+dataset_names[1]+'.json'
+    valfile=dirpath+dataset_names[2]+'_small.json'
 
     DatasetCatalog.register("astro_train", lambda: get_data_from_json(trainfile))
     MetadataCatalog.get("astro_train").set(thing_classes=["star", "galaxy","other"])
@@ -435,17 +439,17 @@ def main(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args):
     cfg.DATASETS.TEST = ("astro_val") # Config calls this TEST, but it should be the val dataset
     #cfg.TEST.EVAL_PERIOD = 40
     cfg.DATALOADER.NUM_WORKERS = 1
-    cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 250  
+    cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512  
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = 3
-    cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 3
+    #cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 3
     cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE = 512
-    cfg.MODEL.PIXEL_MEAN = [-200,-200,-200]
+    cfg.MODEL.PIXEL_MEAN = [-20,-20,-20]
 
 
-    #cfg.INPUT.MIN_SIZE_TRAIN = 1025
-    #cfg.INPUT.MAX_SIZE_TRAIN = 1050
-    cfg.INPUT.MIN_SIZE_TRAIN = 500
-    cfg.INPUT.MAX_SIZE_TRAIN = 500
+    cfg.INPUT.MIN_SIZE_TRAIN = 1025
+    cfg.INPUT.MAX_SIZE_TRAIN = 1050
+    #cfg.INPUT.MIN_SIZE_TRAIN = 500
+    #cfg.INPUT.MAX_SIZE_TRAIN = 525
     
     cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[8, 16, 32, 64, 128]]
     cfg.SOLVER.IMS_PER_BATCH = 4   # this is images per iteration. 1 epoch is len(images)/(ims_per_batch iterations*num_gpus)
@@ -472,8 +476,8 @@ def main(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args):
     efinal=epoch*35
 
     
-    val_per = 20
-
+    val_per = epoch
+    #val_per = 100
 
     if train_head:
 
@@ -508,11 +512,13 @@ def main(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args):
 
         trainer = toolkit.NewAstroTrainer(model, loader, optimizer, cfg)
         trainer.register_hooks(hookList)
-        trainer.set_period(10) # print loss every n iterations
+        trainer.set_period(int(epoch/2)) # print loss every n iterations
         trainer.train(0,e1)
+        #trainer.set_period(20)
+        #trainer.train(0,600)
         if comm.is_main_process():
             np.save(output_dir+output_name+'_losses',trainer.lossList)
-            #np.save(output_dir+output_name+'_val_losses',trainer.vallossList)
+            np.save(output_dir+output_name+'_val_losses',trainer.vallossList)
         return
 
     else:
@@ -537,14 +543,18 @@ def main(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args):
         schedulerHook = toolkit.CustomLRScheduler(optimizer=optimizer)
         lossHook = toolkit.LossEvalHook(val_per, model, test_loader)
         hookList = [lossHook,schedulerHook,saveHook]
-
+        #hookList = [schedulerHook,saveHook]
+        
         trainer = toolkit.NewAstroTrainer(model, loader, optimizer, cfg)
         trainer.register_hooks(hookList)
-        trainer.set_period(epoch) # print loss every n iterations
+        trainer.set_period(int(epoch/2)) # print loss every n iterations
         trainer.train(0,efinal)
+        #trainer.set_period(20) # print loss every n iterations
+        #trainer.train(0,600)
+
         if comm.is_main_process():
             losses = np.load(output_dir+output_name+'_losses.npy')
-            losses= np.concatenate((losses,trainer.lossList))
+            losses = np.concatenate((losses,trainer.lossList))
             np.save(output_dir+output_name+'_losses',losses)
 
             vallosses = np.load(output_dir+output_name+'_val_losses.npy')
@@ -628,8 +638,8 @@ if __name__ == "__main__":
 
     
     #filenames_dict_list = get_dict_lists(dataset_names,dirpath,args.sample_number)
-    traind = get_data_from_json(os.path.join(dirpath,dataset_names[0])+'_full.json')
-    testd = get_data_from_json(os.path.join(dirpath,dataset_names[2])+'_full.json')
+    traind = get_data_from_json(os.path.join(dirpath,dataset_names[0])+'.json')
+    testd = get_data_from_json(os.path.join(dirpath,dataset_names[2])+'_small.json')
 
 
     #number of total samples
@@ -653,6 +663,8 @@ if __name__ == "__main__":
     arch = args.backbone
     if arch=="res50":
         cfgfile="COCO-InstanceSegmentation/mask_rcnn_R_50_C4_3x.yaml"
+    elif arch=="res50_fpn":
+        cfgfile="COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
     elif arch=="res101":
         cfgfile="COCO-InstanceSegmentation/mask_rcnn_R_101_C4_3x.yaml"
     elif arch=="res101_fpn":
