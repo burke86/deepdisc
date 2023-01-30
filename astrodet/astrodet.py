@@ -3,11 +3,13 @@ import numpy as np
 from detectron2.engine import DefaultTrainer
 from detectron2.engine import SimpleTrainer
 from detectron2.engine import HookBase
-from typing import Dict, List, Optional
+from typing import Dict, List, Optional, Mapping
 import detectron2.solver as solver
 import detectron2.modeling as modeler
 import detectron2.data as data
 import detectron2.data.transforms as T
+from detectron2.data.transforms import Transform
+from detectron2.data.transforms import Augmentation
 import detectron2.checkpoint as checkpointer
 from detectron2.data import detection_utils as utils
 import weakref
@@ -19,6 +21,8 @@ import time
 import detectron2
 from detectron2.utils.logger import setup_logger
 setup_logger()
+from detectron2.utils.logger import log_every_n_seconds
+from detectron2.utils import comm
 
 # import some common libraries
 import numpy as np
@@ -32,6 +36,46 @@ from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog, DatasetCatalog
+
+
+
+import argparse
+import logging
+import weakref
+from collections import OrderedDict
+from typing import Optional
+import torch
+from fvcore.nn.precise_bn import get_bn_modules
+from omegaconf import OmegaConf
+from torch.nn.parallel import DistributedDataParallel
+
+import detectron2.data.transforms as T
+from detectron2.checkpoint import DetectionCheckpointer
+from detectron2.config import CfgNode, LazyConfig
+from detectron2.data import (
+    MetadataCatalog,
+    build_detection_test_loader,
+    build_detection_train_loader,
+)
+from detectron2.evaluation import (
+    DatasetEvaluator,
+    inference_on_dataset,
+    print_csv_format,
+    verify_results,
+)
+from detectron2.modeling import build_model
+from detectron2.solver import build_lr_scheduler, build_optimizer
+from detectron2.utils import comm
+from detectron2.utils.collect_env import collect_env_info
+from detectron2.utils.env import seed_all_rng
+from detectron2.utils.events import CommonMetricPrinter, JSONWriter, TensorboardXWriter
+from detectron2.utils.file_io import PathManager
+from detectron2.utils.logger import setup_logger
+
+from detectron2.utils.events import EventStorage, get_event_storage
+from detectron2.engine.hooks import LRScheduler
+from fvcore.common.param_scheduler import ParamScheduler
+
 
 import contextlib
 import copy
@@ -61,10 +105,15 @@ from detectron2.structures import Boxes, BoxMode, pairwise_iou
 from detectron2.utils.file_io import PathManager
 from detectron2.utils.logger import create_small_table
 
+import imgaug.augmenters as iaa
+import imgaug.augmenters.flip as flip
+
 
 from detectron2.structures import BoxMode
 import glob
 from astropy.io import fits
+import gc
+
 
 def set_mpl_style():
     
@@ -101,6 +150,233 @@ class SaveHook(HookBase):
     def after_train(self):
         self.trainer.checkpointer.save(self.output_name) # Note: Set the name of the output model here
         
+
+#Validation loss code adopted from https://gist.github.com/ortegatron/c0dad15e49c2b74de8bb09a5615d9f6b
+class LossEvalHook(HookBase):
+    def __init__(self, eval_period, model, data_loader):
+        self._model = model
+        self._period = eval_period
+        self._data_loader = data_loader
+    
+    def _do_loss_eval(self):
+        # Copying inference_on_dataset from evaluator.py
+        total = len(self._data_loader)
+        num_warmup = min(5, total - 1)
+            
+        start_time = time.perf_counter()
+        total_compute_time = 0
+        losses = []
+        with torch.no_grad():
+            for idx, inputs in enumerate(self._data_loader):            
+                if idx == num_warmup:
+                    start_time = time.perf_counter()
+                    total_compute_time = 0
+                start_compute_time = time.perf_counter()
+                if torch.cuda.is_available():
+                    torch.cuda.synchronize()
+                total_compute_time += time.perf_counter() - start_compute_time
+                iters_after_start = idx + 1 - num_warmup * int(idx >= num_warmup)
+                seconds_per_img = total_compute_time / iters_after_start
+                if idx >= num_warmup * 2 or seconds_per_img > 5:
+                    total_seconds_per_img = (time.perf_counter() - start_time) / iters_after_start
+                    eta = datetime.timedelta(seconds=int(total_seconds_per_img * (total - idx - 1)))
+                    log_every_n_seconds(
+                        logging.INFO,
+                        "Loss on Validation  done {}/{}. {:.4f} s / img. ETA={}".format(
+                            idx + 1, total, seconds_per_img, str(eta)
+                        ),
+                        n=5,
+                    )
+                loss_batch = self._get_loss(inputs)
+            losses.append(loss_batch)
+        mean_loss = np.mean(losses)
+        #print('validation_loss', mean_loss)
+        self.trainer.storage.put_scalar('validation_loss', mean_loss)
+        self.trainer.add_val_loss(mean_loss)
+        self.trainer.valloss=mean_loss
+        comm.synchronize()
+        return losses
+            
+    def _get_loss(self, data):
+        # How loss is calculated on train_loop 
+        metrics_dict = self._model(data)
+        metrics_dict = {
+            k: v.detach().cpu().item() if isinstance(v, torch.Tensor) else float(v)
+            for k, v in metrics_dict.items()
+        }
+        total_losses_reduced = sum(loss for loss in metrics_dict.values())
+        return total_losses_reduced
+        
+        
+    def after_step(self):
+        next_iter = self.trainer.iter + 1
+        is_final = next_iter == self.trainer.max_iter
+        if is_final or (self._period > 0 and next_iter % self._period == 0) or (next_iter == 1):
+            self._do_loss_eval()
+        self.trainer.storage.put_scalars(timetest=12)
+
+
+class CustomLRScheduler(HookBase):
+    """
+    A hook which executes a torch builtin LR scheduler and summarizes the LR.
+    It is executed after every iteration.
+    """
+
+    def __init__(self, optimizer=None, scheduler=None):
+        """
+        Args:
+            optimizer (torch.optim.Optimizer):
+            scheduler (torch.optim.LRScheduler or fvcore.common.param_scheduler.ParamScheduler):
+                if a :class:`ParamScheduler` object, it defines the multiplier over the base LR
+                in the optimizer.
+
+        If any argument is not given, will try to obtain it from the trainer.
+        """
+        self._optimizer = optimizer
+        self._scheduler = scheduler
+
+
+    def before_train(self):
+        self._optimizer = self._optimizer or self.trainer.optimizer
+        if isinstance(self.scheduler, ParamScheduler):
+            self._scheduler = LRMultiplier(
+                self._optimizer,
+                self.scheduler,
+                self.trainer.max_iter,
+                last_iter=self.trainer.iter - 1,
+            )
+        self._best_param_group_id = LRScheduler.get_best_param_group_id(self._optimizer)
+
+
+    @staticmethod
+    def get_best_param_group_id(optimizer):
+        # NOTE: some heuristics on what LR to summarize
+        # summarize the param group with most parameters
+        largest_group = max(len(g["params"]) for g in optimizer.param_groups)
+
+        if largest_group == 1:
+            # If all groups have one parameter,
+            # then find the most common initial LR, and use it for summary
+            lr_count = Counter([g["lr"] for g in optimizer.param_groups])
+            lr = lr_count.most_common()[0][0]
+            for i, g in enumerate(optimizer.param_groups):
+                if g["lr"] == lr:
+                    return i
+        else:
+            for i, g in enumerate(optimizer.param_groups):
+                if len(g["params"]) == largest_group:
+                    return i
+
+
+    def after_step(self):
+        lr = self._optimizer.param_groups[self._best_param_group_id]["lr"]
+        self.trainer.storage.put_scalar("lr", lr, smoothing_hint=False)
+        self.scheduler.step()
+
+
+    @property
+    def scheduler(self):
+        return self._scheduler or self.trainer.scheduler
+
+    def state_dict(self):
+        if isinstance(self.scheduler, _LRScheduler):
+            return self.scheduler.state_dict()
+        return {}
+
+
+    def load_state_dict(self, state_dict):
+        if isinstance(self.scheduler, _LRScheduler):
+            logger = logging.getLogger(__name__)
+            logger.info("Loading scheduler from state_dict ...")
+            self.scheduler.load_state_dict(state_dict)
+            
+            
+
+
+class NewAstroTrainer(SimpleTrainer):
+    def __init__(self, model, data_loader, optimizer, cfg):
+        super().__init__(model, data_loader, optimizer)
+        #super().__init__(model, data_loader, optimizer)
+
+        # Borrowed from DefaultTrainer constructor
+        # see https://detectron2.readthedocs.io/en/latest/_modules/detectron2/engine/defaults.html#DefaultTrainer
+        self.checkpointer = checkpointer.DetectionCheckpointer(
+            # Assume you want to save checkpoints together with logs/statistics
+            model,
+            cfg.OUTPUT_DIR
+        )
+        # load weights
+        self.checkpointer.load(cfg.MODEL.WEIGHTS)
+        
+        # record loss over iteration 
+        self.lossList = []
+        self.vallossList = []
+
+        self.period = 20
+        self.iterCount = 0
+        
+        self.scheduler = self.build_lr_scheduler(cfg, optimizer)
+        self.valloss=0
+
+        
+    
+    #Note: print out loss over p iterations
+    def set_period(self,p):
+        self.period = p
+
+    
+        
+    # Copied directly from SimpleTrainer, add in custom manipulation with the loss
+    # see https://detectron2.readthedocs.io/en/latest/_modules/detectron2/engine/train_loop.html#SimpleTrainer
+    def run_step(self):
+        self.iterCount = self.iterCount + 1
+        assert self.model.training, "[SimpleTrainer] model was changed to eval mode!"
+        start = time.perf_counter()
+        data_time = time.perf_counter() - start
+        data = next(self._data_loader_iter)
+        # Note: in training mode, model() returns loss
+        loss_dict = self.model(data)
+        #print('Loss dict',loss_dict)
+        if isinstance(loss_dict, torch.Tensor):
+            losses = loss_dict
+            loss_dict = {"total_loss": loss_dict}
+        else:
+            losses = sum(loss_dict.values())
+        self.optimizer.zero_grad()
+        losses.backward()
+        
+        
+        #self._write_metrics(loss_dict,data_time)
+
+        self.optimizer.step()
+        
+        
+        self.lossList.append(losses.cpu().detach().numpy())
+        if self.iterCount % self.period == 0 and comm.is_main_process():
+            print("Iteration: ", self.iterCount, " time: ", data_time," loss: ",losses.cpu().detach().numpy(), "val loss: ",self.valloss, "lr: ", self.scheduler.get_lr())
+
+        del data
+        gc.collect()
+        torch.cuda.empty_cache()
+        
+    @classmethod
+    def build_lr_scheduler(cls, cfg, optimizer):
+        """
+        It now calls :func:`detectron2.solver.build_lr_scheduler`.
+        Overwrite it if you'd like a different scheduler.
+        """
+        return build_lr_scheduler(cfg, optimizer)
+    
+    
+    def add_val_loss(self,val_loss):
+        """
+        It now calls :func:`detectron2.solver.build_lr_scheduler`.
+        Overwrite it if you'd like a different scheduler.
+        """
+        
+        self.vallossList.append(val_loss)
+
+
         
 class AstroTrainer(SimpleTrainer):
     def __init__(self, model, data_loader, optimizer, cfg):
@@ -145,11 +421,76 @@ class AstroTrainer(SimpleTrainer):
         self.optimizer.zero_grad()
         losses.backward()
         self.optimizer.step()
-        self.lossList.append(losses)
-        if self.iterCount % self.period == 0:
+        self.lossList.append(losses.cpu().detach().numpy())
+        if self.iterCount % self.period == 0 and comm.is_main_process():
             print("Iteration: ", self.iterCount, " time: ", data_time," loss: ",losses)
             
 
+
+class AstroPredictor:
+    """
+    Create a simple end-to-end predictor with the given config that runs on
+    single device for a single input image.
+    Compared to using the model directly, this class does the following additions:
+    1. Load checkpoint from `cfg.MODEL.WEIGHTS`.
+    2. Always take BGR image as the input and apply conversion defined by `cfg.INPUT.FORMAT`.
+    3. Apply resizing defined by `cfg.INPUT.{MIN,MAX}_SIZE_TEST`.
+    4. Take one input image and produce a single output, instead of a batch.
+    This is meant for simple demo purposes, so it does the above steps automatically.
+    This is not meant for benchmarks or running complicated inference logic.
+    If you'd like to do anything more complicated, please refer to its source code as
+    examples to build and use the model manually.
+    Attributes:
+        metadata (Metadata): the metadata of the underlying dataset, obtained from
+            cfg.DATASETS.TEST.
+    Examples:
+    ::
+        pred = DefaultPredictor(cfg)
+        inputs = cv2.imread("input.jpg")
+        outputs = pred(inputs)
+    """
+
+    def __init__(self, cfg):
+        self.cfg = cfg.clone()  # cfg can be modified by model
+        self.model = build_model(self.cfg)
+        self.model.eval()
+        if len(cfg.DATASETS.TEST):
+            self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
+
+        checkpointer = DetectionCheckpointer(self.model)
+        checkpointer.load(cfg.MODEL.WEIGHTS)
+
+        self.aug = T.ResizeShortestEdge(
+            [cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MIN_SIZE_TEST], cfg.INPUT.MAX_SIZE_TEST
+        )
+
+        self.input_format = cfg.INPUT.FORMAT
+        assert self.input_format in ["RGB", "BGR"], self.input_format
+
+    def __call__(self, original_image):
+        """
+        Args:
+            original_image (np.ndarray): an image of shape (H, W, C) (in BGR order).
+        Returns:
+            predictions (dict):
+                the output of the model for one image only.
+                See :doc:`/tutorials/models` for details about the format.
+        """
+        with torch.no_grad():  # https://github.com/sphinx-doc/sphinx/issues/4258
+            # Apply pre-processing to image.
+            if self.input_format == "RGB":
+                # whether the model expects BGR inputs or RGB
+                original_image = original_image[:, :, ::-1]
+            height, width = original_image.shape[:2]
+            #image = self.aug.get_transform(original_image).apply_image(original_image)
+            image = torch.as_tensor(original_image.astype("float32").transpose(2, 0, 1))
+
+            inputs = {"image": image, "height": height, "width": width}
+            predictions = self.model([inputs])[0]
+            return predictions
+            
+            
+            
 class COCOeval_opt_custom(COCOeval_opt):
     '''
     YL: : this function is copied from COCOeval_opt
@@ -357,7 +698,7 @@ def _evaluate_predictions_on_coco(
                 "They have to agree with each other. For meaning of OKS, please refer to "
                 "http://cocodataset.org/#keypoints-eval."
             )
-        coco_eval.params.maxDets = [1,10,200] # by default it is [1,10,100], our datasets have more than 100 instances
+        coco_eval.params.maxDets = [1,10,500] # by default it is [1,10,100], our datasets have more than 100 instances
         coco_eval.evaluate_custom()
         coco_eval.accumulate_custom()
         coco_eval.summarize()
@@ -570,3 +911,75 @@ def test_mapper(dataset_dict):
         "image_id": dataset_dict["image_id"],
         "instances": utils.annotations_to_instances(annos, image.shape[1:])
     }
+
+
+#Code taken from Deshwal on Stack Overflow
+
+class GenericWrapperTransform(Transform):
+    """
+    Generic wrapper for any transform (for color transform only. You can give functionality to apply_coods, apply_segmentation too)
+    """
+
+    def __init__(self, custom_function):
+        """
+        Args:
+            custom_function (Callable): operation to be applied to the image which takes in an ndarray and returns an ndarray.
+        """
+        if not callable(custom_function):
+            raise ValueError("'custom_function' should be callable")
+        
+        super().__init__()
+        self._set_attributes(locals())
+
+    def apply_image(self, img):
+        '''
+        apply transformation to image array based on the `custom_function`
+        '''
+        return self.custom_function(img)
+
+    def apply_coords(self, coords):
+        '''
+        Apply transformations to Bounding Box Coordinates. Currently is won't do anything but we can change this based on our use case
+        '''
+        return coords
+
+    def inverse(self):
+        return T.NoOpTransform()
+
+    def apply_segmentation(self, segmentation):
+        '''
+        Apply transformations to segmentation. currently is won't do anything but we can change this based on our use case
+        '''
+        return segmentation
+
+
+class CustomAug(Augmentation):
+    """
+    Given a probability and a custom function, return a GenericWrapperTransform object whose `apply_image`  
+    will be called to perform augmentation
+    """
+
+    def __init__(self, custom_function, prob=1.0):
+        """
+        Args:
+            custom_op: Operation to use. Must be a function takes an ndarray and returns an ndarray
+            prob (float): probability of applying the function
+        """
+        super().__init__()
+        self._init(locals())
+
+    def get_transform(self, image):
+        '''
+        Based on probability, choose whether you want to apply the given function or not
+        '''
+        do = self._rand_range() < self.prob
+        if do:
+            return GenericWrapperTransform(self.custom_function)
+        else:
+            return T.NoOpTransform() # it returns a Transform which just returns the original Image array only
+
+
+    
+
+
+
