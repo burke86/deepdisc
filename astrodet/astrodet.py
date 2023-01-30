@@ -211,7 +211,7 @@ class LossEvalHook(HookBase):
     def after_step(self):
         next_iter = self.trainer.iter + 1
         is_final = next_iter == self.trainer.max_iter
-        if is_final or (self._period > 0 and next_iter % self._period == 0):
+        if is_final or (self._period > 0 and next_iter % self._period == 0) or (next_iter == 1):
             self._do_loss_eval()
         self.trainer.storage.put_scalars(timetest=12)
 

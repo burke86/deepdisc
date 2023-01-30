@@ -173,18 +173,18 @@ def read_image(filename, normalize='lupton', stretch=5, Q=10, m=0, ceil_percenti
         g = g*np.arcsinh(stretch*Q*(I - m))/(Q*I)
     
     elif normalize.lower() == 'zscore':
-        #Isigma = I*np.mean([np.nanstd(g), np.nanstd(r), np.nanstd(z)])
-        #z = (z - np.nanmean(z) - m)/Isigma
-        #r = (r - np.nanmean(r) - m)/Isigma
-        #g = (g - np.nanmean(g) - m)/Isigma
+        Isigma = I*np.mean([np.nanstd(g), np.nanstd(r), np.nanstd(z)])
+        z = (z - np.nanmean(z) - m)/Isigma
+        r = (r - np.nanmean(r) - m)/Isigma
+        g = (g - np.nanmean(g) - m)/Isigma
         
-        zsigma = np.nanstd(z)
-        rsigma = np.nanstd(r)
-        gsigma = np.nanstd(g)
+        #zsigma = np.nanstd(z)
+        #rsigma = np.nanstd(r)
+        #gsigma = np.nanstd(g)
         
-        z = A*(z - np.nanmean(z) - m)/zsigma
-        r = A*(r - np.nanmean(r) - m)/rsigma
-        g = A*(g - np.nanmean(g) - m)/gsigma
+        #z = A*(z - np.nanmean(z) - m)/zsigma
+        #r = A*(r - np.nanmean(r) - m)/rsigma
+        #g = A*(g - np.nanmean(g) - m)/gsigma
         
     elif normalize.lower() == 'linear':
         z = (z - m)/I
@@ -193,15 +193,15 @@ def read_image(filename, normalize='lupton', stretch=5, Q=10, m=0, ceil_percenti
     else:
         print('Normalize keyword not recognized.')
 
-    #max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
+    max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
     # avoid saturation
-    #r = r/max_RGB; g = g/max_RGB; z = z/max_RGB
+    r = r/max_RGB; g = g/max_RGB; z = z/max_RGB
 
     # Rescale to 0-255 for dtype=np.uint8
-    #max_dtype = np.iinfo(dtype).max
-    #r = r*max_dtype
-    #g = g*max_dtype
-    #z = z*max_dtype
+    max_dtype = np.iinfo(dtype).max
+    r = r*max_dtype
+    g = g*max_dtype
+    z = z*max_dtype
 
     # 0-255 RGB image
     image[:,:,0] = z # R
@@ -229,22 +229,113 @@ def addelementwise(image):
     aug = iaa.AddElementwise((-image.max()*.1, image.max()*.1))
     return aug.augment_image(image)
 
-def train_mapper(dataset_dict):
+class train_mapper_cls:
+    def __init__(self,**read_image_args):
+        self.ria = read_image_args
+
+    def __call__(self,dataset_dict):
+        dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
+    
+        #image = read_image(dataset_dict["file_name"], normalize=args.norm, ceil_percentile=99.99)
+        image = read_image(dataset_dict["file_name"], normalize = self.ria['normalize'],
+        ceil_percentile = self.ria['ceil_percentile'])
+        '''
+        augs = T.AugmentationList([
+            T.RandomRotation([-90, 90, 180], sample_style='choice'),
+            T.RandomFlip(prob=0.5),
+            T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
+            T.Resize((512,512))
+            
+        ])
+        '''
+        
+        augs = KRandomAugmentationList([
+            # my custom augs
+            T.RandomRotation([-90, 90, 180], sample_style='choice'),
+            T.RandomFlip(prob=0.5),
+            T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
+            CustomAug(gaussblur,prob=1.0),
+            CustomAug(addelementwise,prob=1.0)
+            #CustomAug(white),
+            ],
+            k=-1
+        )
+        
+        # Data Augmentation
+        auginput = T.AugInput(image)
+        # Transformations to model shapes
+        transform = augs(auginput)
+        image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
+        annos = [
+            utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
+            for annotation in dataset_dict.pop("annotations")
+        ]
+        return {
+        # create the format that the model expects
+            "image": image,
+            "image_shaped": auginput.image,
+            "height": 512,
+            "width": 512,
+            "image_id": dataset_dict["image_id"],
+            "instances": utils.annotations_to_instances(annos, image.shape[1:]),
+        }
+
+class test_mapper_cls:
+    def __init__(self,**read_image_args):
+        self.ria = read_image_args
+
+    def __call__(self,dataset_dict):
+        dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
+        image = read_image(dataset_dict["file_name"], normalize = self.ria['normalize'],
+        ceil_percentile = self.ria['ceil_percentile'])
+        
+        augs = KRandomAugmentationList([
+            # my custom augs
+            T.RandomRotation([-90, 90, 180], sample_style='choice'),
+            T.RandomFlip(prob=0.5),
+            T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
+            CustomAug(gaussblur,prob=1.0),
+            CustomAug(addelementwise,prob=1.0)
+            #CustomAug(white),
+            ],
+            k=-1
+        )
+        
+        # Data Augmentation
+        auginput = T.AugInput(image)
+        # Transformations to model shapes
+        transform = augs(auginput)
+        image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
+        annos = [
+            utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
+            for annotation in dataset_dict.pop("annotations")
+        ]
+        return {
+        # create the format that the model expects
+            "image": image,
+            "image_shaped": auginput.image,
+            "height": 512,
+            "width": 512,
+            "image_id": dataset_dict["image_id"],
+            "instances": utils.annotations_to_instances(annos, image.shape[1:]),
+        }
+
+
+'''
+def train_mapper(dataset_dict, **read_image_args):
 
     dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
     
-    image = read_image(dataset_dict["file_name"], normalize='zscore', dtype=np.int16, ceil_percentile=99.99)
-    #image = rescale_image(dataset_dict["file_name"], **read_image_args)
-    '''
-    augs = T.AugmentationList([
-        T.RandomRotation([-90, 90, 180], sample_style='choice'),
-        T.RandomFlip(prob=0.5),
-        T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
-        T.Resize((512,512))
-        
-    ])
-    '''
+    #image = read_image(dataset_dict["file_name"], normalize=args.norm, ceil_percentile=99.99)
+    image = rescale_image(dataset_dict["file_name"], **read_image_args)
     
+    #augs = T.AugmentationList([
+    #    T.RandomRotation([-90, 90, 180], sample_style='choice'),
+    #    T.RandomFlip(prob=0.5),
+    #    T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
+    #    T.Resize((512,512))
+        
+    #])
     
     augs = KRandomAugmentationList([
         # my custom augs
@@ -284,7 +375,7 @@ def test_mapper(dataset_dict, **read_image_args):
     dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
 
     #image = read_image(dataset_dict["file_name"], normalize="lupton", stretch=5, Q=1, ceil_percentile=99.995)
-    image = read_image(dataset_dict["file_name"], normalize='zscore', dtype=np.int16, ceil_percentile=99.99)
+    image = read_image(dataset_dict["file_name"], normalize=args.norm, ceil_percentile=99.99)
 
     augs = T.AugmentationList([
         #T.RandomRotation([-90, 90, 180], sample_style='choice'),
@@ -311,14 +402,20 @@ def test_mapper(dataset_dict, **read_image_args):
         "annotations": annos
     }
 
+'''
 
 
 
-
-def main(dirpath,dataset_names,train_head,output_name,cfgfile,args):
+def main(dataset_names,train_head,args):
     # Hack if you get SSL certificate error 
     import ssl
     ssl._create_default_https_context = ssl._create_unverified_context
+    
+    output_dir = args.output_dir
+    output_name=args.run_name
+    cfgfile=args.cfgfile  
+    dirpath = args.data_dir # Path to dataset
+
 
     # ### Prepare For Training
     # Training logic:
@@ -334,8 +431,6 @@ def main(dirpath,dataset_names,train_head,output_name,cfgfile,args):
         MetadataCatalog.get("astro_" + d).set(thing_classes=["star", "galaxy"], things_colors = ['blue', 'gray'])
 
     astro_metadata = MetadataCatalog.get("astro_train")
-    #output_dir = '/home/shared/hsc/decam/models/'  # fix this later
-    output_dir = args.output_dir
 
     #tl=len(dataset_dicts['train'])
     tl=1000
@@ -349,7 +444,7 @@ def main(dirpath,dataset_names,train_head,output_name,cfgfile,args):
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = 2
     cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE = 512
 
-    cfg.MODEL.PIXEL_MEAN = [-200,-200,-200]
+    #cfg.MODEL.PIXEL_MEAN = [-200,-200,-200]
     
     cfg.INPUT.MIN_SIZE_TRAIN = 512
     cfg.INPUT.MAX_SIZE_TRAIN = 512
@@ -402,8 +497,12 @@ def main(dirpath,dataset_names,train_head,output_name,cfgfile,args):
         os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
         model = modeler.build_model(cfg)
         optimizer = solver.build_optimizer(cfg, model)
-        loader = data.build_detection_train_loader(cfg, mapper=train_mapper)
-        test_loader = data.build_detection_test_loader(cfg,cfg.DATASETS.TEST,mapper=test_mapper)
+
+        _train_mapper = train_mapper_cls(normalize=args.norm,ceil_percentile=99.99)
+        _test_mapper = test_mapper_cls(normalize=args.norm,ceil_percentile=99.99)
+
+        loader = data.build_detection_train_loader(cfg, mapper=_train_mapper)
+        test_loader = data.build_detection_test_loader(cfg,cfg.DATASETS.TEST,mapper=_test_mapper)
 
         
 
@@ -438,10 +537,14 @@ def main(dirpath,dataset_names,train_head,output_name,cfgfile,args):
         cfg.SOLVER.MAX_ITER = efinal          # for LR scheduling
         cfg.MODEL.WEIGHTS = os.path.join(output_dir, output_name+'.pth')  # Initialize from a local weights
 
+        _train_mapper = train_mapper_cls(normalize=args.norm,ceil_percentile=args.cp)
+        _test_mapper = test_mapper_cls(normalize=args.norm,ceil_percentile=args.cp)
+
+
         model = modeler.build_model(cfg)
         optimizer = solver.build_optimizer(cfg, model)
-        loader = data.build_detection_train_loader(cfg, mapper=train_mapper)
-        test_loader = data.build_detection_test_loader(cfg,cfg.DATASETS.TEST,mapper=test_mapper)
+        loader = data.build_detection_train_loader(cfg, mapper=_train_mapper)
+        test_loader = data.build_detection_test_loader(cfg,cfg.DATASETS.TEST,mapper=_test_mapper)
 
         saveHook = toolkit.SaveHook()
         saveHook.set_output_name(output_name)
@@ -497,11 +600,14 @@ Run on multiple machines:
     parser.add_argument("--num-gpus", type=int, default=1, help="number of gpus *per machine*")
     parser.add_argument("--num-machines", type=int, default=1, help="total number of machines")
     parser.add_argument("--run-name", type=str, default='baseline', help="output name for run")
-    parser.add_argument("--backbone", type=str, default='res50', help="backbone architecture for model")
+    parser.add_argument("--cfgfile", type=str, default='COCO-InstanceSegmentation/mask_rcnn_R_50_C4_3x.yaml', help="path to model config file")
+    parser.add_argument("--norm", type=str, default='lupton', help="contrast scaling")
+    parser.add_argument("--data-dir", type=str, default='/home/shared/hsc/decam/decam_data/', help="directory with data")
     parser.add_argument("--output-dir", type=str, default='./', help="output directory to save model")
     parser.add_argument(
         "--machine-rank", type=int, default=0, help="the rank of this machine (unique per machine)"
     )
+    parser.add_argument("--cp", type=float, default=99.99, help="ceiling percentile for saturation cutoff")
 
     # PyTorch still may leave orphan processes in multi-gpu training.
     # Therefore we use a deterministic way to obtain port,
@@ -530,28 +636,8 @@ if __name__ == "__main__":
     args = custom_argument_parser().parse_args()
     print("Command Line Args:", args)
     
-    dirpath = '/home/shared/hsc/decam/decam_data/' # Path to dataset
-
     dataset_names = ['train', 'test', 'val'] 
-    
-    #dataset_dicts = data_register_and_load(dataset_names,dirpath)
-
-    #for i, d in enumerate(dataset_names):
-    #    filenames_dir = os.path.join(dirpath,d)
-    #    DatasetCatalog.register("astro_" + d, lambda: get_astro_dicts(filenames_dir))
-    #    MetadataCatalog.get("astro_" + d).set(thing_classes=["star", "galaxy"], things_colors = ['blue', 'gray'])
-
-
-    output_name=args.run_name
-    arch = args.backbone
-    if arch=="res50":
-        cfgfile="COCO-InstanceSegmentation/mask_rcnn_R_50_C4_3x.yaml"
-    elif arch=="res101":
-        cfgfile="COCO-InstanceSegmentation/mask_rcnn_R_101_C4_3x.yaml"
-    elif arch=="res101_fpn":
-        cfgfile="COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml"
-    else:
-        raise NameError('Choose a different architecture')
+ 
                         
     print('Training head layers')
     train_head=True
@@ -562,7 +648,7 @@ if __name__ == "__main__":
         num_machines=args.num_machines,
         machine_rank=args.machine_rank,
         dist_url=args.dist_url,
-        args=(dirpath,dataset_names,train_head,output_name,cfgfile,args,),
+        args=(dataset_names,train_head,args),
     )
 
     print('Training full model')
@@ -573,7 +659,7 @@ if __name__ == "__main__":
         num_machines=args.num_machines,
         machine_rank=args.machine_rank,
         dist_url=args.dist_url,
-        args=(dirpath,dataset_names,train_head,output_name,cfgfile,args,),
+        args=(dataset_names,train_head,args),
     )
     print(f'Took {time.time()-t0} seconds')
 

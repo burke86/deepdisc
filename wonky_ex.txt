@@ -1,1 +1,0 @@
-/home/paleo2/ASTRODET/HSC/hsc-release.mtk.nao.ac.jp/archive/filetree/pdr2_dud/deepCoadd-results/HSC-G/8767/1,2/calexp-HSC-G-8767-1,2.fits
