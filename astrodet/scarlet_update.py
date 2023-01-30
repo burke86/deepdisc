@@ -156,6 +156,7 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
             filenames['segmask'] = os.path.join(dirpath, f'{f}-{s}_scarlet_segmask.fits')
             save_segmask_hdul.writeto(filenames['segmask'], overwrite=True)
 
+
     return filenames
 
 
@@ -306,6 +307,7 @@ def mad_wavelet_own(image):
 
 
 def fit_scarlet_blend(starlet_sources, observation, catalog, max_iters=15, e_rel=1e-4, plot_likelihood=True,savefigs=False,figpath=''):
+
     """
     Creates a detection catalog by combining low and high resolution data
     
@@ -342,6 +344,7 @@ def fit_scarlet_blend(starlet_sources, observation, catalog, max_iters=15, e_rel
         plt.subplots_adjust(left=0.2)
         if savefigs:
             plt.savefig(figpath+'scarlet_likelihood.png')
+
         plt.show()
     
     return starlet_blend, logL
@@ -362,6 +365,7 @@ def _plot_wavelet(datas):
     
     # Declare a starlet object (and performs the transform)
     Sw = scarlet.Starlet.from_image(datas)#, lvl=5, direct=True)
+
     # This is the starlet transform as an array
     w = Sw.coefficients
     # The inverse starlet transform of w (new object otherwise, the tranform is not used)
@@ -401,6 +405,7 @@ def _plot_wavelet(datas):
 def _plot_scene(starlet_sources, observation, norm, catalog, show_model=True, show_rendered=True,
                show_observed=True, show_residual=True, add_labels=True, add_boxes=True,
                add_ellipses=True,savefigs=False,figpath=''):
+
     
     """
     Helper function to plot scene with scarlet
@@ -466,7 +471,7 @@ def _plot_scene(starlet_sources, observation, norm, catalog, show_model=True, sh
     
     if savefigs:
         plt.savefig(figpath+'scarlet_out.png')
-        
+
     plt.show()
     
     return fig
@@ -478,6 +483,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
                 segmentation_map=True, plot_wavelet=False, plot_likelihood=True,
                 plot_scene=False, plot_sources=False, add_ellipses=True,
                 add_labels=False, add_boxes=False,percentiles=(1,99),savefigs=False,figpath=''):
+
     
     """ Run P. Melchior's scarlet (https://github.com/pmelchior/scarlet) implementation 
     for source separation. This function will create diagnostic plots, a source detection catalog, 
@@ -514,6 +520,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     
     #norm = scarlet.display.AsinhMapping(minimum=0, stretch=stretch, Q=Q)
     norm = scarlet.display.AsinhPercentileNorm(datas,percentiles=percentiles)   
+
     # Generate source catalog using wavelets
     catalog, bg_rms_hsc = make_catalog(datas, lvl, wave=True)
     # If image is already background subtracted, weights are set to 1
@@ -568,6 +575,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     # Fit scarlet blend
     starlet_blend, logL = fit_scarlet_blend(starlet_sources, observation, catalog,max_iters=max_iters, 
                                             plot_likelihood=plot_likelihood,savefigs=savefigs,figpath=figpath)
+
     
     print("Computing residuals.")
 
@@ -596,6 +604,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         
         starlet_blend, logL = fit_scarlet_blend(starlet_sources, observation, catalog, max_iters=max_iters, 
                                                 plot_likelihood=plot_likelihood,savefigs=savefigs,figpath=figpath)
+
         
         
     # Extract the deblended catalog and update the chi2 residuals
@@ -649,6 +658,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         _plot_scene(starlet_sources, observation, norm, catalog, show_model=False, show_rendered=True,
                    show_observed=True, show_residual=True, add_labels=add_labels, add_boxes=add_boxes,
                     add_ellipses=add_ellipses,savefigs=savefigs,figpath=figpath)
+
     
     # Plot each for each source
     if plot_sources == True:
@@ -660,3 +670,4 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         plt.show()
          
     return observation, starlet_sources, model_frame, catalog, catalog_deblended, segmentation_masks
+
