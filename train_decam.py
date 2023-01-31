@@ -41,10 +41,10 @@ import time
 import imgaug.augmenters as iaa
 
 from astrodet import astrodet as toolkit
-
+from astrodet import detectron as detectron_addons
 #Custom Aug classes have been added to detectron source files
-from astrodet.astrodet import CustomAug
-from detectron2.data.transforms.augmentation import KRandomAugmentationList
+from astrodet.detectron import CustomAug
+#from detectron2.data.transforms.augmentation import KRandomAugmentationList
 
 import imgaug.augmenters.flip as flip
 import imgaug.augmenters.blur as blur
@@ -249,7 +249,7 @@ class train_mapper_cls:
         ])
         '''
         
-        augs = KRandomAugmentationList([
+        augs = detectron_addons.KRandomAugmentationList([
             # my custom augs
             T.RandomRotation([-90, 90, 180], sample_style='choice'),
             T.RandomFlip(prob=0.5),
@@ -289,17 +289,21 @@ class test_mapper_cls:
         image = read_image(dataset_dict["file_name"], normalize = self.ria['normalize'],
         ceil_percentile = self.ria['ceil_percentile'])
         
-        augs = KRandomAugmentationList([
-            # my custom augs
-            T.RandomRotation([-90, 90, 180], sample_style='choice'),
-            T.RandomFlip(prob=0.5),
-            T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
-            CustomAug(gaussblur,prob=1.0),
-            CustomAug(addelementwise,prob=1.0)
-            #CustomAug(white),
-            ],
-            k=-1
-        )
+        #augs = detectron_addons.KRandomAugmentationList([
+        #    # my custom augs
+        #    T.RandomRotation([-90, 90, 180], sample_style='choice'),
+        #    T.RandomFlip(prob=0.5),
+        #    T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
+        #    CustomAug(gaussblur,prob=1.0),
+        #    CustomAug(addelementwise,prob=1.0)
+        #    #CustomAug(white),
+        #    ],
+        #    k=-1
+        #)
+
+        augs = T.AugmentationList([])
+
+
         
         # Data Augmentation
         auginput = T.AugInput(image)
