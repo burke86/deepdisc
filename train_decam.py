@@ -22,8 +22,7 @@ from detectron2.config import get_cfg
 from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog, DatasetCatalog
 from detectron2.data import build_detection_train_loader
-from detectron2.engine import DefaultTrainer
-from detectron2.engine import DefaultTrainer,SimpleTrainer, HookBase, default_argument_parser, default_setup, hooks, launch
+from detectron2.engine import default_argument_parser, default_setup, hooks, launch
 from typing import Dict, List, Optional
 import detectron2.solver as solver
 import detectron2.modeling as modeler
@@ -41,10 +40,11 @@ import time
 import imgaug.augmenters as iaa
 
 from astrodet import astrodet as toolkit
+from astrodet.astrodet import read_image
 from astrodet import detectron as detectron_addons
+
 #Custom Aug classes have been added to detectron source files
 from astrodet.detectron import CustomAug
-#from detectron2.data.transforms.augmentation import KRandomAugmentationList
 
 import imgaug.augmenters.flip as flip
 import imgaug.augmenters.blur as blur
@@ -60,76 +60,6 @@ from detectron2.structures import BoxMode
 from astropy.io import fits
 import glob
 
-# ### Register Astro R-CNN dataset
-
-def get_astro_dicts(img_dir):
-        
-    # It's weird to call this img_dir
-    set_dirs = sorted(glob.glob('%s/set_*' % img_dir))
-    
-    dataset_dicts = []
-    
-    # Loop through each set
-    for idx, set_dir in enumerate(set_dirs[0:10]):
-        record = {}
-        
-        mask_dir = os.path.join(img_dir, set_dir, "masks.fits")
-        filename = os.path.join(img_dir, set_dir, "img")
-        
-        # Open each FITS image
-        with fits.open(mask_dir, memmap=False, lazy_load_hdus=False) as hdul:
-            sources = len(hdul)
-            height, width = hdul[0].data.shape
-            data = [hdu.data/np.max(hdu.data) for hdu in hdul]
-            category_ids = [hdu.header["CLASS_ID"] for hdu in hdul]
-            
-        record["file_name"] = filename
-        record["image_id"] = idx
-        record["height"] = height
-        record["width"] = width
-        objs = []
-        
-        # Mask value thresholds per category_id
-        thresh = [0.005 if i == 1 else 0.08 for i in category_ids]
-        
-        # Generate segmentation masks
-        for i in range(sources):
-            image = data[i]
-            mask = np.zeros([height, width], dtype=np.uint8)
-            # Create mask from threshold
-            mask[:,:][image > thresh[i]] = 1
-            # Smooth mask
-            mask[:,:] = cv2.GaussianBlur(mask[:,:], (9,9), 2)
-            
-            # https://github.com/facebookresearch/Detectron/issues/100
-            contours, hierarchy = cv2.findContours((mask).astype(np.uint8), cv2.RETR_TREE,
-                                                        cv2.CHAIN_APPROX_SIMPLE)
-            segmentation = []
-            for contour in contours:
-                x,y,w,h = cv2.boundingRect(contour)
-                contour = contour.flatten().tolist()
-                # segmentation.append(contour)
-                if len(contour) > 4:
-                    segmentation.append(contour)
-            # No valid countors
-            if len(segmentation) == 0:
-                continue
-            
-            # Add to dict
-            obj = {
-                "bbox": [x, y, w, h],
-                "area": w*h,
-                "bbox_mode": BoxMode.XYWH_ABS,
-                "segmentation": segmentation,
-                "category_id": category_ids[i] - 1,
-            }
-            objs.append(obj)
-            
-        record["annotations"] = objs
-        dataset_dicts.append(record)
-         
-    return dataset_dicts
-
 
 
 def get_data_from_json(file):
@@ -137,277 +67,6 @@ def get_data_from_json(file):
     with open(file, 'r') as f:
         data = json.load(f)
     return data
-
-
-def data_register_and_load(dataset_names,dirpath):
-    
-    # Dataset loading can take a while
-    print('Data loading may take a few minutes')
-    dataset_dicts = {}
-    #for i, d in enumerate(dataset_names):
-    for i, d in enumerate(dataset_names):
-        print(f'Loading {d}')
-        dataset_dicts[d] = get_astro_dicts(os.path.join(dirpath, d))
-
-    return dataset_dicts
-
-
-
-def read_image(filename, normalize='lupton', stretch=5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8, A=1e4):
-    
-    # Read image
-    g = fits.getdata(os.path.join(filename+'_g.fits'), memmap=False)
-    r = fits.getdata(os.path.join(filename+'_r.fits'), memmap=False)
-    z = fits.getdata(os.path.join(filename+'_z.fits'), memmap=False)
-    
-    # Contrast scaling / normalization
-    I = (z + r + g)/3.0
-    
-    length, width = g.shape
-    image = np.empty([length, width, 3], dtype=dtype)
-    
-    # Options for contrast scaling
-    if normalize.lower() == 'lupton':
-        z = z*np.arcsinh(stretch*Q*(I - m))/(Q*I)
-        r = r*np.arcsinh(stretch*Q*(I - m))/(Q*I)
-        g = g*np.arcsinh(stretch*Q*(I - m))/(Q*I)
-    
-    elif normalize.lower() == 'zscore':
-        Isigma = I*np.mean([np.nanstd(g), np.nanstd(r), np.nanstd(z)])
-        z = (z - np.nanmean(z) - m)/Isigma
-        r = (r - np.nanmean(r) - m)/Isigma
-        g = (g - np.nanmean(g) - m)/Isigma
-        
-        #zsigma = np.nanstd(z)
-        #rsigma = np.nanstd(r)
-        #gsigma = np.nanstd(g)
-        
-        #z = A*(z - np.nanmean(z) - m)/zsigma
-        #r = A*(r - np.nanmean(r) - m)/rsigma
-        #g = A*(g - np.nanmean(g) - m)/gsigma
-        
-    elif normalize.lower() == 'linear':
-        z = (z - m)/I
-        r = (r - m)/I
-        g = (g - m)/I
-    else:
-        print('Normalize keyword not recognized.')
-
-    max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
-    # avoid saturation
-    r = r/max_RGB; g = g/max_RGB; z = z/max_RGB
-
-    # Rescale to 0-255 for dtype=np.uint8
-    max_dtype = np.iinfo(dtype).max
-    r = r*max_dtype
-    g = g*max_dtype
-    z = z*max_dtype
-
-    # 0-255 RGB image
-    image[:,:,0] = z # R
-    image[:,:,1] = r # G
-    image[:,:,2] = g # B
-    
-    return image
-
-# ### Augment Data
-
-def gaussblur(image):
-    aug = iaa.GaussianBlur(sigma=(0.0, np.random.random_sample()*4+2))
-    return aug.augment_image(image)
-
-def addelementwise16(image):
-    aug = iaa.AddElementwise((-3276, 3276))
-    return aug.augment_image(image)
-
-def addelementwise8(image):
-    aug = iaa.AddElementwise((-25, 25))
-    return aug.augment_image(image)
-
-
-def addelementwise(image):
-    aug = iaa.AddElementwise((-image.max()*.1, image.max()*.1))
-    return aug.augment_image(image)
-
-class train_mapper_cls:
-    def __init__(self,**read_image_args):
-        self.ria = read_image_args
-
-    def __call__(self,dataset_dict):
-        dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-    
-        #image = read_image(dataset_dict["file_name"], normalize=args.norm, ceil_percentile=99.99)
-        image = read_image(dataset_dict["file_name"], normalize = self.ria['normalize'],
-        ceil_percentile = self.ria['ceil_percentile'])
-        '''
-        augs = T.AugmentationList([
-            T.RandomRotation([-90, 90, 180], sample_style='choice'),
-            T.RandomFlip(prob=0.5),
-            T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
-            T.Resize((512,512))
-            
-        ])
-        '''
-        
-        augs = detectron_addons.KRandomAugmentationList([
-            # my custom augs
-            T.RandomRotation([-90, 90, 180], sample_style='choice'),
-            T.RandomFlip(prob=0.5),
-            T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
-            CustomAug(gaussblur,prob=1.0),
-            CustomAug(addelementwise,prob=1.0)
-            #CustomAug(white),
-            ],
-            k=-1
-        )
-        
-        # Data Augmentation
-        auginput = T.AugInput(image)
-        # Transformations to model shapes
-        transform = augs(auginput)
-        image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
-        annos = [
-            utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
-            for annotation in dataset_dict.pop("annotations")
-        ]
-        return {
-        # create the format that the model expects
-            "image": image,
-            "image_shaped": auginput.image,
-            "height": 512,
-            "width": 512,
-            "image_id": dataset_dict["image_id"],
-            "instances": utils.annotations_to_instances(annos, image.shape[1:]),
-        }
-
-class test_mapper_cls:
-    def __init__(self,**read_image_args):
-        self.ria = read_image_args
-
-    def __call__(self,dataset_dict):
-        dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-        image = read_image(dataset_dict["file_name"], normalize = self.ria['normalize'],
-        ceil_percentile = self.ria['ceil_percentile'])
-        
-        #augs = detectron_addons.KRandomAugmentationList([
-        #    # my custom augs
-        #    T.RandomRotation([-90, 90, 180], sample_style='choice'),
-        #    T.RandomFlip(prob=0.5),
-        #    T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
-        #    CustomAug(gaussblur,prob=1.0),
-        #    CustomAug(addelementwise,prob=1.0)
-        #    #CustomAug(white),
-        #    ],
-        #    k=-1
-        #)
-
-        augs = T.AugmentationList([])
-
-
-        
-        # Data Augmentation
-        auginput = T.AugInput(image)
-        # Transformations to model shapes
-        transform = augs(auginput)
-        image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
-        annos = [
-            utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
-            for annotation in dataset_dict.pop("annotations")
-        ]
-        return {
-        # create the format that the model expects
-            "image": image,
-            "image_shaped": auginput.image,
-            "height": 512,
-            "width": 512,
-            "image_id": dataset_dict["image_id"],
-            "instances": utils.annotations_to_instances(annos, image.shape[1:]),
-        }
-
-
-'''
-def train_mapper(dataset_dict, **read_image_args):
-
-    dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-    
-    #image = read_image(dataset_dict["file_name"], normalize=args.norm, ceil_percentile=99.99)
-    image = rescale_image(dataset_dict["file_name"], **read_image_args)
-    
-    #augs = T.AugmentationList([
-    #    T.RandomRotation([-90, 90, 180], sample_style='choice'),
-    #    T.RandomFlip(prob=0.5),
-    #    T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
-    #    T.Resize((512,512))
-        
-    #])
-    
-    augs = KRandomAugmentationList([
-        # my custom augs
-        T.RandomRotation([-90, 90, 180], sample_style='choice'),
-        T.RandomFlip(prob=0.5),
-        T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
-        CustomAug(gaussblur,prob=1.0),
-        CustomAug(addelementwise,prob=1.0)
-        #CustomAug(white),
-        ],
-        k=-1
-    )
-    
-    # Data Augmentation
-    auginput = T.AugInput(image)
-    # Transformations to model shapes
-    transform = augs(auginput)
-    image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
-    annos = [
-        utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
-        for annotation in dataset_dict.pop("annotations")
-    ]
-    return {
-       # create the format that the model expects
-        "image": image,
-        "image_shaped": auginput.image,
-        "height": 512,
-        "width": 512,
-        "image_id": dataset_dict["image_id"],
-        "instances": utils.annotations_to_instances(annos, image.shape[1:]),
-    }
-
-
-
-def test_mapper(dataset_dict, **read_image_args):
-
-    dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-
-    #image = read_image(dataset_dict["file_name"], normalize="lupton", stretch=5, Q=1, ceil_percentile=99.995)
-    image = read_image(dataset_dict["file_name"], normalize=args.norm, ceil_percentile=99.99)
-
-    augs = T.AugmentationList([
-        #T.RandomRotation([-90, 90, 180], sample_style='choice'),
-        #T.RandomFlip(prob=0.5),
-        #T.Resize((512,512))
-    ])
-    # Data Augmentation
-    auginput = T.AugInput(image)
-    # Transformations to model shapes
-    transform = augs(auginput)
-    image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
-    annos = [
-        utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
-        for annotation in dataset_dict.pop("annotations")
-    ]
-    return {
-       # create the format that the model expects
-        "image": image,
-        "image_shaped": auginput.image,
-        "height": 512,
-        "width": 512,
-        "image_id": dataset_dict["image_id"],
-        "instances": utils.annotations_to_instances(annos, image.shape[1:]),
-        "annotations": annos
-    }
-
-'''
-
 
 
 def main(dataset_names,train_head,args):
@@ -502,18 +161,18 @@ def main(dataset_names,train_head,args):
         model = modeler.build_model(cfg)
         optimizer = solver.build_optimizer(cfg, model)
 
-        _train_mapper = train_mapper_cls(normalize=args.norm,ceil_percentile=99.99)
-        _test_mapper = test_mapper_cls(normalize=args.norm,ceil_percentile=99.99)
+        _train_mapper = toolkit.train_mapper_cls(normalize=args.norm,ceil_percentile=99.99)
+        _test_mapper = toolkit.test_mapper_cls(normalize=args.norm,ceil_percentile=99.99)
 
         loader = data.build_detection_train_loader(cfg, mapper=_train_mapper)
         test_loader = data.build_detection_test_loader(cfg,cfg.DATASETS.TEST,mapper=_test_mapper)
 
         
 
-        saveHook = toolkit.SaveHook()
+        saveHook = detectron_addons.SaveHook()
         saveHook.set_output_name(output_name)
-        schedulerHook = toolkit.CustomLRScheduler(optimizer=optimizer)
-        lossHook = toolkit.LossEvalHook(val_per, model, test_loader)
+        schedulerHook = detectron_addons.CustomLRScheduler(optimizer=optimizer)
+        lossHook = detectron_addons.LossEvalHook(val_per, model, test_loader)
         hookList = [lossHook,schedulerHook,saveHook]
 
 

@@ -2,7 +2,6 @@ import sys, os
 import numpy as np
 from detectron2.engine import DefaultTrainer
 from detectron2.engine import SimpleTrainer
-from detectron2.engine import HookBase
 from typing import Dict, List, Optional, Mapping
 import detectron2.solver as solver
 import detectron2.modeling as modeler
@@ -107,6 +106,7 @@ from detectron2.utils.logger import create_small_table
 
 import imgaug.augmenters as iaa
 import imgaug.augmenters.flip as flip
+from . import detectron as detectron_addons
 
 
 from detectron2.structures import BoxMode
@@ -141,157 +141,6 @@ def set_mpl_style():
     
     return
     
-    
-"""Note:SaveHook is in charge of saving the trained model"""
-class SaveHook(HookBase):
-    output_name = "model_temp"
-    def set_output_name(self, name):
-        self.output_name = name
-    def after_train(self):
-        self.trainer.checkpointer.save(self.output_name) # Note: Set the name of the output model here
-        
-
-#Validation loss code adopted from https://gist.github.com/ortegatron/c0dad15e49c2b74de8bb09a5615d9f6b
-class LossEvalHook(HookBase):
-    def __init__(self, eval_period, model, data_loader):
-        self._model = model
-        self._period = eval_period
-        self._data_loader = data_loader
-    
-    def _do_loss_eval(self):
-        # Copying inference_on_dataset from evaluator.py
-        total = len(self._data_loader)
-        num_warmup = min(5, total - 1)
-            
-        start_time = time.perf_counter()
-        total_compute_time = 0
-        losses = []
-        with torch.no_grad():
-            for idx, inputs in enumerate(self._data_loader):            
-                if idx == num_warmup:
-                    start_time = time.perf_counter()
-                    total_compute_time = 0
-                start_compute_time = time.perf_counter()
-                if torch.cuda.is_available():
-                    torch.cuda.synchronize()
-                total_compute_time += time.perf_counter() - start_compute_time
-                iters_after_start = idx + 1 - num_warmup * int(idx >= num_warmup)
-                seconds_per_img = total_compute_time / iters_after_start
-                if idx >= num_warmup * 2 or seconds_per_img > 5:
-                    total_seconds_per_img = (time.perf_counter() - start_time) / iters_after_start
-                    eta = datetime.timedelta(seconds=int(total_seconds_per_img * (total - idx - 1)))
-                    log_every_n_seconds(
-                        logging.INFO,
-                        "Loss on Validation  done {}/{}. {:.4f} s / img. ETA={}".format(
-                            idx + 1, total, seconds_per_img, str(eta)
-                        ),
-                        n=5,
-                    )
-                loss_batch = self._get_loss(inputs)
-            losses.append(loss_batch)
-        mean_loss = np.mean(losses)
-        #print('validation_loss', mean_loss)
-        self.trainer.storage.put_scalar('validation_loss', mean_loss)
-        self.trainer.add_val_loss(mean_loss)
-        self.trainer.valloss=mean_loss
-        comm.synchronize()
-        return losses
-            
-    def _get_loss(self, data):
-        # How loss is calculated on train_loop 
-        metrics_dict = self._model(data)
-        metrics_dict = {
-            k: v.detach().cpu().item() if isinstance(v, torch.Tensor) else float(v)
-            for k, v in metrics_dict.items()
-        }
-        total_losses_reduced = sum(loss for loss in metrics_dict.values())
-        return total_losses_reduced
-        
-        
-    def after_step(self):
-        next_iter = self.trainer.iter + 1
-        is_final = next_iter == self.trainer.max_iter
-        if is_final or (self._period > 0 and next_iter % self._period == 0) or (next_iter == 1):
-            self._do_loss_eval()
-        self.trainer.storage.put_scalars(timetest=12)
-
-
-class CustomLRScheduler(HookBase):
-    """
-    A hook which executes a torch builtin LR scheduler and summarizes the LR.
-    It is executed after every iteration.
-    """
-
-    def __init__(self, optimizer=None, scheduler=None):
-        """
-        Args:
-            optimizer (torch.optim.Optimizer):
-            scheduler (torch.optim.LRScheduler or fvcore.common.param_scheduler.ParamScheduler):
-                if a :class:`ParamScheduler` object, it defines the multiplier over the base LR
-                in the optimizer.
-
-        If any argument is not given, will try to obtain it from the trainer.
-        """
-        self._optimizer = optimizer
-        self._scheduler = scheduler
-
-
-    def before_train(self):
-        self._optimizer = self._optimizer or self.trainer.optimizer
-        if isinstance(self.scheduler, ParamScheduler):
-            self._scheduler = LRMultiplier(
-                self._optimizer,
-                self.scheduler,
-                self.trainer.max_iter,
-                last_iter=self.trainer.iter - 1,
-            )
-        self._best_param_group_id = LRScheduler.get_best_param_group_id(self._optimizer)
-
-
-    @staticmethod
-    def get_best_param_group_id(optimizer):
-        # NOTE: some heuristics on what LR to summarize
-        # summarize the param group with most parameters
-        largest_group = max(len(g["params"]) for g in optimizer.param_groups)
-
-        if largest_group == 1:
-            # If all groups have one parameter,
-            # then find the most common initial LR, and use it for summary
-            lr_count = Counter([g["lr"] for g in optimizer.param_groups])
-            lr = lr_count.most_common()[0][0]
-            for i, g in enumerate(optimizer.param_groups):
-                if g["lr"] == lr:
-                    return i
-        else:
-            for i, g in enumerate(optimizer.param_groups):
-                if len(g["params"]) == largest_group:
-                    return i
-
-
-    def after_step(self):
-        lr = self._optimizer.param_groups[self._best_param_group_id]["lr"]
-        self.trainer.storage.put_scalar("lr", lr, smoothing_hint=False)
-        self.scheduler.step()
-
-
-    @property
-    def scheduler(self):
-        return self._scheduler or self.trainer.scheduler
-
-    def state_dict(self):
-        if isinstance(self.scheduler, _LRScheduler):
-            return self.scheduler.state_dict()
-        return {}
-
-
-    def load_state_dict(self, state_dict):
-        if isinstance(self.scheduler, _LRScheduler):
-            logger = logging.getLogger(__name__)
-            logger.info("Loading scheduler from state_dict ...")
-            self.scheduler.load_state_dict(state_dict)
-            
-            
-
 
 class NewAstroTrainer(SimpleTrainer):
     def __init__(self, model, data_loader, optimizer, cfg):
@@ -530,7 +379,7 @@ class COCOeval_opt_custom(COCOeval_opt):
         self.ious = {(imgId, catId): computeIoU(imgId, catId) \
                         for imgId in p.imgIds
                         for catId in catIds}
-
+        #print(self.ious)
         evaluateImg = self.evaluateImg
         maxDet = p.maxDets[-1]
         self.evalImgs = [evaluateImg(imgId, catId, areaRng, maxDet)
@@ -820,8 +669,8 @@ class COCOEvaluatorRecall(COCOEvaluator):
         if not np.isfinite(sum(results.values())):
             self._logger.info("Some metrics cannot be computed and is shown as NaN.")
 
-        if class_names is None or len(class_names) <= 1:
-            return results
+        #if class_names is None or len(class_names) <= 1:
+        #    return results
         # Compute per-category AP
         # from https://github.com/facebookresearch/Detectron/blob/a6a835f5b8208c45d0dce217ce9bbda915f44df7/detectron/datasets/json_dataset_evaluator.py#L222-L252 # noqa
         precisions = coco_eval.eval["precision"]
@@ -859,124 +708,226 @@ class COCOEvaluatorRecall(COCOEvaluator):
         return results
     
 
-def train_mapper(dataset_dict):
 
-    dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-
-    image = read_image(dataset_dict["file_name"], normalize = 'zscore')
-    augs = T.AugmentationList([
-        T.RandomRotation([-90,90, 180], sample_style='choice'),
-        T.RandomFlip(prob=0.5),
-        T.Resize((512,512))
-    ])
-    # Data Augmentation
-    auginput = T.AugInput(image)
-    transform = augs(auginput) # remove this?
-    image = torch.from_numpy(auginput.image.transpose(2, 0, 1))
-    annos = [
-        utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
-        for annotation in dataset_dict.pop("annotations")
-    ]
-    return {
-       # create the format that the model expects
-        "image": image,
-        "height": 512,
-        "width": 512,
-        "image_id": dataset_dict["image_id"],
-        "instances": utils.annotations_to_instances(annos, image.shape[1:])
-    }
-
-
-def test_mapper(dataset_dict):
-
-    dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-
-    image = read_image(dataset_dict["file_name"])
-    augs = T.AugmentationList([
-        T.Resize((512,512))
-    ])
-    # Data Augmentation
-    auginput = T.AugInput(image)
-    transform = augs(auginput) # remove this?
-    image = torch.from_numpy(auginput.image.transpose(2, 0, 1))
-    annos = [
-        utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
-        for annotation in dataset_dict.pop("annotations")
-    ]
-    return {
-       # create the format that the model expects
-        "image": image,
-        "height": 512,
-        "width": 512,
-        "image_id": dataset_dict["image_id"],
-        "instances": utils.annotations_to_instances(annos, image.shape[1:])
-    }
-
-
-#Code taken from Deshwal on Stack Overflow
-
-class GenericWrapperTransform(Transform):
-    """
-    Generic wrapper for any transform (for color transform only. You can give functionality to apply_coods, apply_segmentation too)
-    """
-
-    def __init__(self, custom_function):
-        """
-        Args:
-            custom_function (Callable): operation to be applied to the image which takes in an ndarray and returns an ndarray.
-        """
-        if not callable(custom_function):
-            raise ValueError("'custom_function' should be callable")
+def read_image(filename, normalize='lupton', stretch=5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8, A=1e4):
+    
+    # Read image
+    g = fits.getdata(os.path.join(filename+'_g.fits'), memmap=False)
+    r = fits.getdata(os.path.join(filename+'_r.fits'), memmap=False)
+    z = fits.getdata(os.path.join(filename+'_z.fits'), memmap=False)
+    
+    # Contrast scaling / normalization
+    I = (z + r + g)/3.0
+    
+    length, width = g.shape
+    image = np.empty([length, width, 3], dtype=dtype)
+    
+    # Options for contrast scaling
+    if normalize.lower() == 'lupton':
+        z = z*np.arcsinh(stretch*Q*(I - m))/(Q*I)
+        r = r*np.arcsinh(stretch*Q*(I - m))/(Q*I)
+        g = g*np.arcsinh(stretch*Q*(I - m))/(Q*I)
+    
+    elif normalize.lower() == 'zscore':
+        Isigma = I*np.mean([np.nanstd(g), np.nanstd(r), np.nanstd(z)])
+        z = (z - np.nanmean(z) - m)/Isigma
+        r = (r - np.nanmean(r) - m)/Isigma
+        g = (g - np.nanmean(g) - m)/Isigma
         
-        super().__init__()
-        self._set_attributes(locals())
+    elif normalize.lower() == 'linear':
+        z = (z - m)/I
+        r = (r - m)/I
+        g = (g - m)/I
+    else:
+        print('Normalize keyword not recognized.')
 
-    def apply_image(self, img):
-        '''
-        apply transformation to image array based on the `custom_function`
-        '''
-        return self.custom_function(img)
+    max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
+    # avoid saturation
+    r = r/max_RGB; g = g/max_RGB; z = z/max_RGB
 
-    def apply_coords(self, coords):
-        '''
-        Apply transformations to Bounding Box Coordinates. Currently is won't do anything but we can change this based on our use case
-        '''
-        return coords
+    # Rescale to 0-255 for dtype=np.uint8
+    max_dtype = np.iinfo(dtype).max
+    r = r*max_dtype
+    g = g*max_dtype
+    z = z*max_dtype
 
-    def inverse(self):
-        return T.NoOpTransform()
-
-    def apply_segmentation(self, segmentation):
-        '''
-        Apply transformations to segmentation. currently is won't do anything but we can change this based on our use case
-        '''
-        return segmentation
+    # 0-255 RGB image
+    image[:,:,0] = z # R
+    image[:,:,1] = r # G
+    image[:,:,2] = g # B
+    
+    return image
 
 
-class CustomAug(Augmentation):
-    """
-    Given a probability and a custom function, return a GenericWrapperTransform object whose `apply_image`  
-    will be called to perform augmentation
-    """
 
-    def __init__(self, custom_function, prob=1.0):
-        """
-        Args:
-            custom_op: Operation to use. Must be a function takes an ndarray and returns an ndarray
-            prob (float): probability of applying the function
-        """
-        super().__init__()
-        self._init(locals())
+# ### Augment Data
+def gaussblur(image):
+    aug = iaa.GaussianBlur(sigma=(0.0, np.random.random_sample()*4+2))
+    return aug.augment_image(image)
 
-    def get_transform(self, image):
+def addelementwise16(image):
+    aug = iaa.AddElementwise((-3276, 3276))
+    return aug.augment_image(image)
+
+def addelementwise8(image):
+    aug = iaa.AddElementwise((-25, 25))
+    return aug.augment_image(image)
+
+
+def addelementwise(image):
+    aug = iaa.AddElementwise((-image.max()*.1, image.max()*.1))
+    return aug.augment_image(image)
+
+
+class train_mapper_cls:
+    def __init__(self,**read_image_args):
+        self.ria = read_image_args
+
+    def __call__(self,dataset_dict):
+        dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
+    
+        #image = read_image(dataset_dict["file_name"], normalize=args.norm, ceil_percentile=99.99)
+        image = read_image(dataset_dict["file_name"], normalize = self.ria['normalize'],
+        ceil_percentile = self.ria['ceil_percentile'])
         '''
-        Based on probability, choose whether you want to apply the given function or not
+        augs = T.AugmentationList([
+            T.RandomRotation([-90, 90, 180], sample_style='choice'),
+            T.RandomFlip(prob=0.5),
+            T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
+            T.Resize((512,512))
+            
+        ])
         '''
-        do = self._rand_range() < self.prob
-        if do:
-            return GenericWrapperTransform(self.custom_function)
-        else:
-            return T.NoOpTransform() # it returns a Transform which just returns the original Image array only
+        
+        augs = detectron_addons.KRandomAugmentationList([
+            # my custom augs
+            T.RandomRotation([-90, 90, 180], sample_style='choice'),
+            T.RandomFlip(prob=0.5),
+            T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
+            detectron_addons.CustomAug(gaussblur,prob=1.0),
+            detectron_addons.CustomAug(addelementwise,prob=1.0)
+            #CustomAug(white),
+            ],
+            k=-1
+        )
+        
+        # Data Augmentation
+        auginput = T.AugInput(image)
+        # Transformations to model shapes
+        transform = augs(auginput)
+        image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
+        annos = [
+            utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
+            for annotation in dataset_dict.pop("annotations")
+        ]
+        return {
+        # create the format that the model expects
+            "image": image,
+            "image_shaped": auginput.image,
+            "height": 512,
+            "width": 512,
+            "image_id": dataset_dict["image_id"],
+            "instances": utils.annotations_to_instances(annos, image.shape[1:]),
+        }
+
+class test_mapper_cls:
+    def __init__(self,**read_image_args):
+        self.ria = read_image_args
+
+    def __call__(self,dataset_dict):
+        dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
+        image = read_image(dataset_dict["file_name"], normalize = self.ria['normalize'],
+        ceil_percentile = self.ria['ceil_percentile'])
+        
+        augs = T.AugmentationList([])
+        
+        # Data Augmentation
+        auginput = T.AugInput(image)
+        # Transformations to model shapes
+        transform = augs(auginput)
+        image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
+        annos = [
+            utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
+            for annotation in dataset_dict.pop("annotations")
+        ]
+        return {
+        # create the format that the model expects
+            "image": image,
+            "image_shaped": auginput.image,
+            "height": 512,
+            "width": 512,
+            "image_id": dataset_dict["image_id"],
+            "instances": utils.annotations_to_instances(annos, image.shape[1:]),
+        }
+
+# ### Format Astro R-CNN dataset for detectron instance segmentation models
+def get_astro_dicts(img_dir):
+        
+    # It's weird to call this img_dir
+    set_dirs = sorted(glob.glob('%s/set_*' % img_dir))
+    
+    dataset_dicts = []
+    
+    # Loop through each set
+    for idx, set_dir in enumerate(set_dirs[0:10]):
+        record = {}
+        
+        mask_dir = os.path.join(img_dir, set_dir, "masks.fits")
+        filename = os.path.join(img_dir, set_dir, "img")
+        
+        # Open each FITS image
+        with fits.open(mask_dir, memmap=False, lazy_load_hdus=False) as hdul:
+            sources = len(hdul)
+            height, width = hdul[0].data.shape
+            data = [hdu.data/np.max(hdu.data) for hdu in hdul]
+            category_ids = [hdu.header["CLASS_ID"] for hdu in hdul]
+            
+        record["file_name"] = filename
+        record["image_id"] = idx
+        record["height"] = height
+        record["width"] = width
+        objs = []
+        
+        # Mask value thresholds per category_id
+        thresh = [0.005 if i == 1 else 0.08 for i in category_ids]
+        
+        # Generate segmentation masks
+        for i in range(sources):
+            image = data[i]
+            mask = np.zeros([height, width], dtype=np.uint8)
+            # Create mask from threshold
+            mask[:,:][image > thresh[i]] = 1
+            # Smooth mask
+            mask[:,:] = cv2.GaussianBlur(mask[:,:], (9,9), 2)
+            
+            # https://github.com/facebookresearch/Detectron/issues/100
+            contours, hierarchy = cv2.findContours((mask).astype(np.uint8), cv2.RETR_TREE,
+                                                        cv2.CHAIN_APPROX_SIMPLE)
+            segmentation = []
+            for contour in contours:
+                x,y,w,h = cv2.boundingRect(contour)
+                contour = contour.flatten().tolist()
+                # segmentation.append(contour)
+                if len(contour) > 4:
+                    segmentation.append(contour)
+            # No valid countors
+            if len(segmentation) == 0:
+                continue
+            
+            # Add to dict
+            obj = {
+                "bbox": [x, y, w, h],
+                "area": w*h,
+                "bbox_mode": BoxMode.XYWH_ABS,
+                "segmentation": segmentation,
+                "category_id": category_ids[i] - 1,
+            }
+            objs.append(obj)
+            
+        record["annotations"] = objs
+        dataset_dicts.append(record)
+         
+    return dataset_dicts
 
 
     
