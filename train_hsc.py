@@ -4,8 +4,11 @@ try:
     from shapely.errors import ShapelyDeprecationWarning
     import warnings
     warnings.filterwarnings('ignore', category=ShapelyDeprecationWarning)
+
 except:
     pass
+warnings.filterwarnings('ignore', category=RuntimeWarning)
+
 
 # Some basic setup:
 # Setup detectron2 logger
@@ -49,6 +52,7 @@ import time
 import imgaug.augmenters as iaa
 
 from astrodet import astrodet as toolkit
+from astrodet import detectron as detectron_addons
 
 #Custom Aug classes have been added to detectron source files
 from astrodet.astrodet import CustomAug
@@ -237,7 +241,18 @@ def read_image(filenames, normalize='lupton', stretch=5, Q=10, m=0, ceil_percent
         z = A*(z - np.nanmean(z) - m)/zsigma
         r = A*(r - np.nanmean(r) - m)/rsigma
         g = A*(g - np.nanmean(g) - m)/gsigma
-        
+
+    elif normalize.lower() == 'sinh':
+        z = np.sinh(z)
+        r = np.sinh(r)
+        g = np.sinh(g)
+
+    elif normalize.lower() == 'sqrt':
+        z = np.sqrt(z)
+        r = np.sqrt(r)
+        g = np.sqrt(g)
+
+
     elif normalize.lower() == 'linear':
         z = (z - m)/I
         r = (r - m)/I
@@ -280,6 +295,124 @@ def addelementwise(image):
     aug = iaa.AddElementwise((-image.max()*.1, image.max()*.1))
     return aug.augment_image(image)
 
+class train_mapper_cls:
+    def __init__(self,**read_image_args):
+        self.ria = read_image_args
+
+    def __call__(self,dataset_dict):
+        dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
+        filenames=[dataset_dict['filename_G'],dataset_dict['filename_R'],dataset_dict['filename_I']]
+
+        #image = read_image(dataset_dict["file_name"], normalize=args.norm, ceil_percentile=99.99)
+        image = read_image(filenames, normalize = self.ria['normalize'],
+        ceil_percentile = self.ria['ceil_percentile'])
+        '''
+        augs = T.AugmentationList([
+            T.RandomRotation([-90, 90, 180], sample_style='choice'),
+            T.RandomFlip(prob=0.5),
+            T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
+            T.Resize((512,512))
+            
+        ])
+        '''
+        
+        augs = detectron_addons.KRandomAugmentationList([
+            # my custom augs
+            T.RandomRotation([-90, 90, 180], sample_style='choice'),
+            T.RandomFlip(prob=0.5),
+            T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
+            #CustomAug(gaussblur,prob=1.0),
+            #CustomAug(addelementwise,prob=1.0)
+            #CustomAug(white),
+            ],
+            k=-1,
+            cropaug=T.RandomCrop('relative',(0.5,0.5))
+            #cropaug=T.Resize((512,512))
+            #cropaug=None
+        )
+        
+        # Data Augmentation
+        auginput = T.AugInput(image)
+        # Transformations to model shapes
+        transform = augs(auginput)
+        image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
+        annos = [
+            utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
+            for annotation in dataset_dict.pop("annotations")
+        ]
+
+        instances = utils.annotations_to_instances(annos, image.shape[1:])
+        instances = utils.filter_empty_instances(instances)
+
+        return {
+        # create the format that the model expects
+            "image": image,
+            "image_shaped": auginput.image,
+            "height": image.shape[1],
+            "width": image.shape[2],
+            "image_id": dataset_dict["image_id"],
+            "instances": instances,
+            #"instances": utils.annotations_to_instances(annos, image.shape[1:])
+        }
+
+class test_mapper_cls:
+    def __init__(self,**read_image_args):
+        self.ria = read_image_args
+
+    def __call__(self,dataset_dict):
+        dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
+        filenames=[dataset_dict['filename_G'],dataset_dict['filename_R'],dataset_dict['filename_I']]
+
+        image = read_image(filenames, normalize = self.ria['normalize'],
+        ceil_percentile = self.ria['ceil_percentile'])
+        
+        #augs = detectron_addons.KRandomAugmentationList([
+        #    # my custom augs
+        #    T.RandomRotation([-90, 90, 180], sample_style='choice'),
+        #    T.RandomFlip(prob=0.5),
+        #    T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
+        #    CustomAug(gaussblur,prob=1.0),
+        #    CustomAug(addelementwise,prob=1.0)
+        #    #CustomAug(white),
+        #    ],
+        #    k=-1
+        #)
+
+        augs = T.AugmentationList([
+        #T.RandomCrop('relative',(0.5,0.5))
+        #T.Resize((512,512))
+        T.CropTransform(image.shape[1]//4,image.shape[0]//4,image.shape[1]//2,image.shape[0]//2)
+        ])
+
+
+        
+        # Data Augmentation
+        auginput = T.AugInput(image)
+        # Transformations to model shapes
+        transform = augs(auginput)
+        image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
+        annos = [
+            utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
+            for annotation in dataset_dict.pop("annotations")
+        ]
+
+
+        instances = utils.annotations_to_instances(annos, image.shape[1:])
+        instances = utils.filter_empty_instances(instances)
+        
+        return {
+        # create the format that the model expects
+            "image": image,
+            "image_shaped": auginput.image,
+            "height": image.shape[1],
+            "width": image.shape[2],
+            "image_id": dataset_dict["image_id"],
+            "instances": instances,
+            #"instances": utils.annotations_to_instances(annos, image.shape[1:]),
+            #"annotations": annos
+        }
+
+'''
 def train_mapper(dataset_dict):
 
     dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
@@ -372,16 +505,19 @@ def test_mapper(dataset_dict, **read_image_args):
         #"instances": utils.annotations_to_instances(annos, image.shape[1:]),
         #"annotations": annos
     }
+'''
 
 
-# Hack if you get SSL certificate error 
-import ssl
-ssl._create_default_https_context = ssl._create_unverified_context
 
+def main(tl,dataset_names,train_head,args):
+    # Hack if you get SSL certificate error 
+    import ssl
+    ssl._create_default_https_context = ssl._create_unverified_context
 
-def main(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args):
-
-
+    output_dir = args.output_dir
+    output_name=args.run_name
+    cfgfile=args.cfgfile  
+    dirpath = args.data_dir # Path to dataset
 
 
     # ### Prepare For Training
@@ -392,9 +528,9 @@ def main(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args):
 
 
     
-    trainfile=dirpath+dataset_names[0]+'.json'
-    testfile=dirpath+dataset_names[1]+'.json'
-    valfile=dirpath+dataset_names[2]+'_smallest.json'
+    trainfile=dirpath+dataset_names[0]+'_sample.json'
+    testfile=dirpath+dataset_names[1]+'_sample.json'
+    valfile=dirpath+dataset_names[2]+'_sample.json'
 
     DatasetCatalog.register("astro_train", lambda: get_data_from_json(trainfile))
     MetadataCatalog.get("astro_train").set(thing_classes=["star", "galaxy","other"])
@@ -405,7 +541,8 @@ def main(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args):
     #astrotest_metadata = MetadataCatalog.get("astro_test") # astro_test dataset needs to exist
 
 
-    DatasetCatalog.register("astro_val", lambda: get_data_from_json(valfile))
+    #DatasetCatalog.register("astro_val", lambda: get_data_from_json(valfile))
+    DatasetCatalog.register("astro_val", lambda: get_data_from_json(testfile))
     MetadataCatalog.get("astro_val").set(thing_classes=["star", "galaxy","other"])
     astroval_metadata = MetadataCatalog.get("astro_val") # astro_test dataset needs to exist
 
@@ -426,7 +563,6 @@ def main(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args):
     #astrotest_metadata = MetadataCatalog.get("astro_test") # astro_test dataset needs to exist
     #astrotval_metadata = MetadataCatalog.get("astro_val") # astro_test dataset needs to exist
     
-    output_dir = '/home/shared/hsc/HSC/HSC_DR3/models/'
     #astro_metadata = MetadataCatalog.get("astro_train")
     #print(len(filenames_dict_list[0]['g']['img'][0]))
     
@@ -438,7 +574,7 @@ def main(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args):
     cfg.DATASETS.TRAIN = ("astro_train") # Register Metadata
     cfg.DATASETS.TEST = ("astro_val") # Config calls this TEST, but it should be the val dataset
     #cfg.TEST.EVAL_PERIOD = 40
-    cfg.DATALOADER.NUM_WORKERS = 0
+    cfg.DATALOADER.NUM_WORKERS = 1
     cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512  
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = 3
     #cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 3
@@ -446,13 +582,13 @@ def main(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args):
     #cfg.MODEL.PIXEL_MEAN = [-200,-200,-200]
 
 
-    cfg.INPUT.MIN_SIZE_TRAIN = 1025
-    cfg.INPUT.MAX_SIZE_TRAIN = 1050
-    #cfg.INPUT.MIN_SIZE_TRAIN = 500
-    #cfg.INPUT.MAX_SIZE_TRAIN = 525
+    #cfg.INPUT.MIN_SIZE_TRAIN = 1025
+    #cfg.INPUT.MAX_SIZE_TRAIN = 1050
+    cfg.INPUT.MIN_SIZE_TRAIN = 500
+    cfg.INPUT.MAX_SIZE_TRAIN = 525
     
     cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[8, 16, 32, 64, 128]]
-    cfg.SOLVER.IMS_PER_BATCH = 4   # this is images per iteration. 1 epoch is len(images)/(ims_per_batch iterations)
+    cfg.SOLVER.IMS_PER_BATCH = 8   # this is images per iteration. 1 epoch is len(images)/(ims_per_batch iterations)
     
     cfg.OUTPUT_DIR = output_dir
     cfg.TEST.DETECTIONS_PER_IMAGE = 1000
@@ -500,8 +636,12 @@ def main(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args):
         os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
         model = modeler.build_model(cfg)
         optimizer = solver.build_optimizer(cfg, model)
-        loader = data.build_detection_train_loader(cfg, mapper=train_mapper)
-        test_loader = data.build_detection_test_loader(cfg,cfg.DATASETS.TEST,mapper=test_mapper)
+
+        _train_mapper = train_mapper_cls(normalize=args.norm,ceil_percentile=args.cp)
+        _test_mapper = test_mapper_cls(normalize=args.norm,ceil_percentile=args.cp)
+
+        loader = data.build_detection_train_loader(cfg, mapper=_train_mapper)
+        test_loader = data.build_detection_test_loader(cfg,cfg.DATASETS.TEST,mapper=_test_mapper)
         
         saveHook = toolkit.SaveHook()
         saveHook.set_output_name(output_name)
@@ -533,10 +673,14 @@ def main(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args):
         cfg.SOLVER.MAX_ITER = efinal          # for LR scheduling
         cfg.MODEL.WEIGHTS = os.path.join(output_dir, output_name+'.pth')  # Initialize from a local weights
 
+        _train_mapper = train_mapper_cls(normalize=args.norm,ceil_percentile=args.cp)
+        _test_mapper = test_mapper_cls(normalize=args.norm,ceil_percentile=args.cp)
+
+
         model = modeler.build_model(cfg)
         optimizer = solver.build_optimizer(cfg, model)
-        loader = data.build_detection_train_loader(cfg, mapper=train_mapper)
-        test_loader = data.build_detection_test_loader(cfg,cfg.DATASETS.TEST,mapper=test_mapper)
+        loader = data.build_detection_train_loader(cfg, mapper=_train_mapper)
+        test_loader = data.build_detection_test_loader(cfg,cfg.DATASETS.TEST,mapper=_test_mapper)
 
         saveHook = toolkit.SaveHook()
         saveHook.set_output_name(output_name)
@@ -597,12 +741,14 @@ Run on multiple machines:
     parser.add_argument("--num-gpus", type=int, default=1, help="number of gpus *per machine*")
     parser.add_argument("--num-machines", type=int, default=1, help="total number of machines")
     parser.add_argument("--run-name", type=str, default='baseline', help="output name for run")
-    parser.add_argument("--backbone", type=str, default='res50', help="backbone architecture for model")
+    parser.add_argument("--cfgfile", type=str, default='COCO-InstanceSegmentation/mask_rcnn_R_50_C4_3x.yaml', help="path to model config file")
+    parser.add_argument("--norm", type=str, default='lupton', help="contrast scaling")
+    parser.add_argument("--data-dir", type=str, default='/home/shared/hsc/HSC/HSC_DR3/data/', help="directory with data")
+    parser.add_argument("--output-dir", type=str, default='./', help="output directory to save model")
     parser.add_argument(
         "--machine-rank", type=int, default=0, help="the rank of this machine (unique per machine)"
     )
-    parser.add_argument("--sample-number", type=int, default=-1, help="number of files to use for each set")
-
+    parser.add_argument("--cp", type=float, default=99.99, help="ceiling percentile for saturation cutoff")
 
     # PyTorch still may leave orphan processes in multi-gpu training.
     # Therefore we use a deterministic way to obtain port,
@@ -638,8 +784,8 @@ if __name__ == "__main__":
 
     
     #filenames_dict_list = get_dict_lists(dataset_names,dirpath,args.sample_number)
-    traind = get_data_from_json(os.path.join(dirpath,dataset_names[0])+'.json')
-    testd = get_data_from_json(os.path.join(dirpath,dataset_names[2])+'_small.json')
+    traind = get_data_from_json(os.path.join(dirpath,dataset_names[0])+'_sample.json')
+    testd = get_data_from_json(os.path.join(dirpath,dataset_names[2])+'_sample.json')
 
 
     #number of total samples
@@ -658,19 +804,6 @@ if __name__ == "__main__":
     #    DatasetCatalog.register("astro_" + d, lambda: get_astro_dicts(filenames_dir))
     #    MetadataCatalog.get("astro_" + d).set(thing_classes=["star", "galaxy"], things_colors = ['blue', 'gray'])
 
-
-    output_name=args.run_name
-    arch = args.backbone
-    if arch=="res50":
-        cfgfile="COCO-InstanceSegmentation/mask_rcnn_R_50_C4_3x.yaml"
-    elif arch=="res50_fpn":
-        cfgfile="COCO-InstanceSegmentation/mask_rcnn_R_50_FPN_3x.yaml"
-    elif arch=="res101":
-        cfgfile="COCO-InstanceSegmentation/mask_rcnn_R_101_C4_3x.yaml"
-    elif arch=="res101_fpn":
-        cfgfile="COCO-InstanceSegmentation/mask_rcnn_R_101_FPN_3x.yaml"
-    else:
-        raise NameError('Choose a different architecture')
                         
     print('Training head layers')
     train_head=True
@@ -681,7 +814,7 @@ if __name__ == "__main__":
         num_machines=args.num_machines,
         machine_rank=args.machine_rank,
         dist_url=args.dist_url,
-        args=(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args,),
+        args=(tl,dataset_names,train_head,args,),
     )
 
     print('Training full model')
@@ -692,7 +825,7 @@ if __name__ == "__main__":
         num_machines=args.num_machines,
         machine_rank=args.machine_rank,
         dist_url=args.dist_url,
-        args=(tl,dirpath,dataset_names,train_head,output_name,cfgfile,args,),
+        args=(tl,dataset_names,train_head,args,),
     )
     print(f'Took {time.time()-t0} seconds')
 
