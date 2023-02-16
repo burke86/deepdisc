@@ -468,10 +468,10 @@ def main(tl,dataset_names,train_head,args):
         trainer.set_period(int(epoch/2)) # print loss every n iterations
         trainer.train(0,e1)
         #trainer.set_period(20)
-        #trainer.train(0,600)
+        #trainer.train(0,60)
         if comm.is_main_process():
-            np.save(output_dir+output_name+'_losses',trainer.lossList)
-            np.save(output_dir+output_name+'_val_losses',trainer.vallossList)
+            np.save(os.path.join(output_dir,output_name)+'_losses',trainer.lossList)
+            np.save(os.path.join(output_dir,output_name)+'_val_losses',trainer.vallossList)
         return
 
     else:
@@ -510,13 +510,13 @@ def main(tl,dataset_names,train_head,args):
         #trainer.train(0,600)
 
         if comm.is_main_process():
-            losses = np.load(output_dir+output_name+'_losses.npy')
+            losses = np.load(os.path.join(output_dir,output_name)+'_losses.npy')
             losses = np.concatenate((losses,trainer.lossList))
-            np.save(output_dir+output_name+'_losses',losses)
+            np.save(os.path.join(output_dir,output_name)+'_losses',losses)
 
-            vallosses = np.load(output_dir+output_name+'_val_losses.npy')
+            vallosses = np.load(os.path.join(output_dir,output_name)+'_val_losses.npy')
             vallosses= np.concatenate((vallosses,trainer.vallossList))
-            np.save(output_dir+output_name+'_val_losses',vallosses)
+            np.save(os.path.join(output_dir,output_name)+'_val_losses',vallosses)
 
         return
 
