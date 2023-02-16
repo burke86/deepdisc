@@ -738,6 +738,22 @@ def read_image(filename, normalize='lupton', stretch=5, Q=10, m=0, ceil_percenti
         z = (z - m)/I
         r = (r - m)/I
         g = (g - m)/I
+        
+    elif normalize.lower() == 'sinh':
+        z = np.sinh((z-m)/I)
+        r = np.sinh((r-m)/I)
+        g = np.sinh((g-m)/I)    
+        
+    elif normalize.lower() == 'sqrt':
+        z = np.sqrt((z-m)/I)
+        r = np.sqrt((r-m)/I)
+        g = np.sqrt((g-m)/I)
+        
+    elif normalize.lower() == 'linear':
+        z = (z - m)/I
+        r = (r - m)/I
+        g = (g - m)/I    
+     
     else:
         print('Normalize keyword not recognized.')
 
