@@ -753,6 +753,13 @@ def read_image(filename, normalize='lupton', stretch=5, Q=10, m=0, ceil_percenti
         z = (z - m)/I
         r = (r - m)/I
         g = (g - m)/I    
+        
+    elif normalize.lower()== 'raw':
+        image = np.zeros([length, width, 3])
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        return image
      
     else:
         print('Normalize keyword not recognized.')

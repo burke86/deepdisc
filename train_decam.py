@@ -200,8 +200,8 @@ def main(dataset_names,train_head,args):
         cfg.SOLVER.MAX_ITER = efinal          # for LR scheduling
         cfg.MODEL.WEIGHTS = os.path.join(output_dir, output_name+'.pth')  # Initialize from a local weights
 
-        _train_mapper = train_mapper_cls(normalize=args.norm,ceil_percentile=args.cp)
-        _test_mapper = test_mapper_cls(normalize=args.norm,ceil_percentile=args.cp)
+        _train_mapper = toolkit.train_mapper_cls(normalize=args.norm,ceil_percentile=args.cp)
+        _test_mapper = toolkit.test_mapper_cls(normalize=args.norm,ceil_percentile=args.cp)
 
 
         model = modeler.build_model(cfg)
@@ -209,10 +209,10 @@ def main(dataset_names,train_head,args):
         loader = data.build_detection_train_loader(cfg, mapper=_train_mapper)
         test_loader = data.build_detection_test_loader(cfg,cfg.DATASETS.TEST,mapper=_test_mapper)
 
-        saveHook = toolkit.SaveHook()
+        saveHook = detectron_addons.SaveHook()
         saveHook.set_output_name(output_name)
-        schedulerHook = toolkit.CustomLRScheduler(optimizer=optimizer)
-        lossHook = toolkit.LossEvalHook(val_per, model, test_loader)
+        schedulerHook = detectron_addons.CustomLRScheduler(optimizer=optimizer)
+        lossHook = detectron_addons.LossEvalHook(val_per, model, test_loader)
         hookList = [lossHook,schedulerHook,saveHook]
 
         trainer = toolkit.NewAstroTrainer(model, loader, optimizer, cfg)
