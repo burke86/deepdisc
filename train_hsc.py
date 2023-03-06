@@ -54,9 +54,6 @@ import imgaug.augmenters as iaa
 from astrodet import astrodet as toolkit
 from astrodet import detectron as detectron_addons
 
-#Custom Aug classes have been added to detectron source files
-from astrodet.astrodet import CustomAug
-from detectron2.data.transforms.augmentation import KRandomAugmentationList
 
 import imgaug.augmenters.flip as flip
 import imgaug.augmenters.blur as blur
@@ -321,8 +318,8 @@ class train_mapper_cls:
             T.RandomRotation([-90, 90, 180], sample_style='choice'),
             T.RandomFlip(prob=0.5),
             T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
-            #CustomAug(gaussblur,prob=1.0),
-            #CustomAug(addelementwise,prob=1.0)
+            detectron_addons.CustomAug(gaussblur,prob=1.0),
+            detectron_addons.CustomAug(addelementwise,prob=1.0)
             #CustomAug(white),
             ],
             k=-1,
@@ -412,102 +409,6 @@ class test_mapper_cls:
             #"annotations": annos
         }
 
-'''
-def train_mapper(dataset_dict):
-
-    dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-    filenames=[dataset_dict['filename_G'],dataset_dict['filename_R'],dataset_dict['filename_I']]
-
-    image = read_image(filenames, normalize='lupton', dtype=np.uint8)
-    #image = rescale_image(dataset_dict["file_name"], **read_image_args)
-    
-    #augs = T.AugmentationList([
-    #    T.RandomCrop('relative',(0.5,0.5)),
-    #    T.RandomRotation([-90, 90, 180], sample_style='choice'),
-    #    T.RandomFlip(prob=0.5),
-    #    T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
-    #    #T.Resize((512,512)),
-    #    #T.FixedSizeCrop((512,512))
-    #])
-    
-    
-    augs = KRandomAugmentationList([
-        # my custom augs
-        T.RandomRotation([-90, 90, 180], sample_style='choice'),
-        T.RandomFlip(prob=0.5),
-        T.RandomFlip(prob=0.5,horizontal=False,vertical=True),
-        #CustomAug(gaussblur,prob=1.0),
-        #CustomAug(addelementwise,prob=1.0)
-        #CustomAug(white),
-        ],
-        k=-1,
-        cropaug=T.RandomCrop('relative',(0.5,0.5))
-        #cropaug=T.Resize((512,512))
-        #cropaug=None
-    )
-    
-    # Data Augmentation
-    auginput = T.AugInput(image)
-    # Transformations to model shapes
-    transform = augs(auginput)
-    image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
-    annos = [
-        utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
-        for annotation in dataset_dict.pop("annotations")
-    ]
-
-    instances = utils.annotations_to_instances(annos, image.shape[1:])
-    instances = utils.filter_empty_instances(instances)
-
-    return {
-       # create the format that the model expects
-        "image": image,
-        "image_shaped": auginput.image,
-        "height": image.shape[1],
-        "width": image.shape[2],
-        "image_id": dataset_dict["image_id"],
-        "instances": instances,
-        #"instances": utils.annotations_to_instances(annos, image.shape[1:])
-    }
-
-def test_mapper(dataset_dict, **read_image_args):
-
-    dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-    filenames=[dataset_dict['filename_G'],dataset_dict['filename_R'],dataset_dict['filename_I']]
-    image = read_image(filenames, normalize="lupton", dtype=np.uint8)
-    
-    augs = T.AugmentationList([
-        T.RandomCrop('relative',(0.5,0.5))
-        #T.Resize((512,512))
-    ])
-    # Data Augmentation
-    auginput = T.AugInput(image)
-    # Transformations to model shapes
-    transform = augs(auginput)
-    image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
-    annos = [
-        utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
-        for annotation in dataset_dict.pop("annotations")
-    ]
-
-
-    instances = utils.annotations_to_instances(annos, image.shape[1:])
-    instances = utils.filter_empty_instances(instances)
-    
-    return {
-       # create the format that the model expects
-        "image": image,
-        "image_shaped": auginput.image,
-        "height": image.shape[1],
-        "width": image.shape[2],
-        "image_id": dataset_dict["image_id"],
-        "instances": instances,
-        #"instances": utils.annotations_to_instances(annos, image.shape[1:]),
-        #"annotations": annos
-    }
-'''
-
-
 
 def main(tl,dataset_names,train_head,args):
     # Hack if you get SSL certificate error 
@@ -518,7 +419,7 @@ def main(tl,dataset_names,train_head,args):
     output_name=args.run_name
     cfgfile=args.cfgfile  
     dirpath = args.data_dir # Path to dataset
-
+    scheme = args.scheme
 
     # ### Prepare For Training
     # Training logic:
@@ -526,14 +427,21 @@ def main(tl,dataset_names,train_head,args):
     # 1) run intially with backbone frozen (freeze_at=4) for 15 epochs
     # 2) unfreeze and run for [25,35,50] epochs with lr decaying by 0.1x each time
 
-
     
-    trainfile=dirpath+dataset_names[0]+'_sample.json'
-    testfile=dirpath+dataset_names[1]+'_sample.json'
-    valfile=dirpath+dataset_names[2]+'_sample.json'
+    
+    trainfile=dirpath+dataset_names[0]+'_sample_scheme%d.json' %scheme
+    testfile=dirpath+dataset_names[1]+'_sample_scheme%d.json' %scheme
+    valfile=dirpath+dataset_names[2]+'_sample_scheme%d.json' %scheme
 
+    if scheme ==1 or scheme ==3:
+        classes =["star", "galaxy","bad_fit","unknown"]
+    elif scheme ==2:
+        classes =["star", "galaxy","bad_fit"]
+
+    numclasses = len(classes)
+        
     DatasetCatalog.register("astro_train", lambda: get_data_from_json(trainfile))
-    MetadataCatalog.get("astro_train").set(thing_classes=["star", "galaxy","other"])
+    MetadataCatalog.get("astro_train").set(thing_classes=classes)
     astrotrain_metadata = MetadataCatalog.get("astro_train") # astro_test dataset needs to exist
 
     #DatasetCatalog.register("astro_test", lambda: get_data_from_json(testfile))
@@ -543,7 +451,7 @@ def main(tl,dataset_names,train_head,args):
 
     #DatasetCatalog.register("astro_val", lambda: get_data_from_json(valfile))
     DatasetCatalog.register("astro_val", lambda: get_data_from_json(testfile))
-    MetadataCatalog.get("astro_val").set(thing_classes=["star", "galaxy","other"])
+    MetadataCatalog.get("astro_val").set(thing_classes=classes)
     astroval_metadata = MetadataCatalog.get("astro_val") # astro_test dataset needs to exist
 
 
@@ -576,7 +484,7 @@ def main(tl,dataset_names,train_head,args):
     #cfg.TEST.EVAL_PERIOD = 40
     cfg.DATALOADER.NUM_WORKERS = 1
     cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = 512  
-    cfg.MODEL.ROI_HEADS.NUM_CLASSES = 3
+    cfg.MODEL.ROI_HEADS.NUM_CLASSES = numclasses
     #cfg.MODEL.SEM_SEG_HEAD.NUM_CLASSES = 3
     cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE = 512
     #cfg.MODEL.PIXEL_MEAN = [-200,-200,-200]
@@ -643,10 +551,10 @@ def main(tl,dataset_names,train_head,args):
         loader = data.build_detection_train_loader(cfg, mapper=_train_mapper)
         test_loader = data.build_detection_test_loader(cfg,cfg.DATASETS.TEST,mapper=_test_mapper)
         
-        saveHook = toolkit.SaveHook()
+        saveHook = detectron_addons.SaveHook()
         saveHook.set_output_name(output_name)
-        schedulerHook = toolkit.CustomLRScheduler(optimizer=optimizer)
-        lossHook = toolkit.LossEvalHook(val_per, model, test_loader)
+        schedulerHook = detectron_addons.CustomLRScheduler(optimizer=optimizer)
+        lossHook = detectron_addons.LossEvalHook(val_per, model, test_loader)
         hookList = [lossHook,schedulerHook,saveHook]
         #hookList = [schedulerHook,saveHook]
 
@@ -682,10 +590,10 @@ def main(tl,dataset_names,train_head,args):
         loader = data.build_detection_train_loader(cfg, mapper=_train_mapper)
         test_loader = data.build_detection_test_loader(cfg,cfg.DATASETS.TEST,mapper=_test_mapper)
 
-        saveHook = toolkit.SaveHook()
+        saveHook = detectron_addons.SaveHook()
         saveHook.set_output_name(output_name)
-        schedulerHook = toolkit.CustomLRScheduler(optimizer=optimizer)
-        lossHook = toolkit.LossEvalHook(val_per, model, test_loader)
+        schedulerHook = detectron_addons.CustomLRScheduler(optimizer=optimizer)
+        lossHook = detectron_addons.LossEvalHook(val_per, model, test_loader)
         hookList = [lossHook,schedulerHook,saveHook]
         #hookList = [schedulerHook,saveHook]
         
@@ -749,7 +657,9 @@ Run on multiple machines:
         "--machine-rank", type=int, default=0, help="the rank of this machine (unique per machine)"
     )
     parser.add_argument("--cp", type=float, default=99.99, help="ceiling percentile for saturation cutoff")
+    parser.add_argument("--scheme", type=int, default=1, help="classification scheme")
 
+    
     # PyTorch still may leave orphan processes in multi-gpu training.
     # Therefore we use a deterministic way to obtain port,
     # so that users are aware of orphan processes by seeing the port occupied.

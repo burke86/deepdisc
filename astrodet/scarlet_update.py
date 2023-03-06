@@ -671,3 +671,199 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
          
     return observation, starlet_sources, model_frame, catalog, catalog_deblended, segmentation_masks
 
+
+
+
+def overlapped_slices(bbox1, bbox2):
+    """Slices of bbox1 and bbox2 that overlap
+
+    Parameters
+    ---Z-------
+    bbox1: `~scarlet.bbox.Box`
+    bbox2: `~scarlet.bbox.Box`
+
+    Returns
+    -------
+    slices: tuple of slices
+        The slice of an array bounded by `bbox1` and
+        the slice of an array bounded by `bbox` in the
+        overlapping region.
+    """
+    overlap = bbox1 & bbox2
+    _bbox1 = overlap - bbox1.origin
+    _bbox2 = overlap - bbox2.origin
+    slices = (
+        _bbox1.slices,
+        _bbox2.slices,
+    )
+    return slices
+
+
+def get_processed_hsc_DR3_data(filename,filters=['g','r','i'],dirpath='/home/g4merz/deblend/data/processed_HSC_DR3/lvl5/',
+                              stringcap=14):
+    """
+    Get HSC data given tract/patch info or SkyCoord
+    
+    Parameters
+    ----------
+    dirpath : str
+        Path to HSC image file directory
+    filters : list 
+        A list of filters for your images. Default is ['g', 'r', 'i'].
+    tract  : int
+        An integer used for specifying the tract. Default is 10054
+    patch : [int, int]
+        Patch #,#. Default is [0,0]
+    coord  : SkyCoord
+        Astropy SkyCoord, when specified, overrides tract/patch info and attempts to lookup HSC filename from ra, dec. 
+        Default is None
+    cutout_size: [int, int]
+        Size of cutout to use (set to None for no cutting). Default is [128, 128]
+        
+    The image filepath is in the form:
+        {dirpath}/deepCoadd/HSC-{filter}/{tract}/{patch[0]},{patch[1]}/calexp-HSC-{filter}-{tract}-{patch[0]},{patch[1]}.fits
+    
+    Returns
+    -------
+    data : ndarray
+        HSC data array with dimensions [filters, N, N]
+    """
+
+    
+    s = filename.split(f'G-')[1].split('.fits')[0]
+    tract, patch,sp = s.split('-')
+    tract = int(tract)
+    patch = tuple(map(int, patch.split(',')))
+    sp = int(sp[1:-stringcap])
+    
+    filters = [f.upper() for f in filters]
+    
+    #if coord is not None:
+    #    print("Overriding tract/patch info and looking for HSC file at requested coordinates.")
+    #    tract, patch = get_tract_patch_from_coord(coord)
+        
+    datas = []
+    #models = []
+    #print(dirpath,'dirpath')
+    
+    for f in filters:
+
+        impath = os.path.join(dirpath, f'{f}-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_img.fits')
+        modpath = os.path.join(dirpath, f'{f}-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_model.fits')
+        #print(impath, 'impath')
+        
+        #print(f'Loading "{filepath}".')
+        try:
+            with fits.open(impath) as obs_hdul:
+                data = obs_hdul[0].data
+                wcs = WCS(obs_hdul[0].header)
+                #fits.close(impath)
+        
+        #mod_hdul = fits.open(modpath)
+        #model = mod_hdul[1].data
+        
+
+            datas.append(data)
+        #models.append(model)
+
+        except:
+            print('Missing filter ', f)
+            return None
+    
+    return np.array(datas)
+
+
+
+
+
+def return_model_objects(fiG,luptonize=False,stringcap=14,dirpath='/home/shared/hsc/HSC/HSC_DR3/data/train/'):
+    
+    
+    s = fiG.split(f'G-')[1].split('.fits')[0]
+    tract, patch,sp = s.split('-')
+    tract = int(tract)
+    patch = tuple(map(int, patch.split(',')))
+    sp = int(sp[1:-stringcap])
+    
+    #print('Running on ', fiG)
+
+    #fiR=f'/home/shared/hsc/HSC/HSC_DR3/data/train/R-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_model.fits'
+
+    #fiI=f'/home/shared/hsc/HSC/HSC_DR3/data/train/I-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_model.fits'
+    
+    
+    fiR=dirpath+f'R-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_model.fits'
+
+    fiI=dirpath+f'I-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_model.fits'
+
+    
+    
+    
+    d= get_processed_hsc_DR3_data(fiG,dirpath=dirpath,stringcap=stringcap)
+    fb = scarlet.bbox.Box(d.shape[1:])
+
+    model = np.zeros(d.shape)
+    with fits.open(fiG) as sourcesG:
+        ls = len(sourcesG)
+    
+    objectsG = []
+    objectsR = []
+    objectsI = []
+
+    for i,file in enumerate([fiG,fiR,fiI]):
+        bandmodel = np.zeros(d.shape[1:])
+        l=1+i*(ls-1)
+        u=l+ls-1
+        with fits.open(file) as sources:
+            sources = fits.open(file)
+            for src in sources[l:u]:
+                srcmodel = src.data
+                if i==0:
+                    objectsG.append(srcmodel)
+                elif i==1:
+                    objectsR.append(srcmodel)
+                elif i==2:
+                    objectsI.append(srcmodel)            
+
+                bb = src.header['BBOX']
+                bb=bb.split(',')
+                bmin1=int(bb[0])
+                bmin2=int(bb[1])
+                bs1=int(bb[2])
+                bs2=int(bb[3])
+
+                shape=[bs2,bs1]
+                origin=[bmin2-int(np.floor(bs1/2)),bmin1-int(np.floor(bs2/2))]
+                #print(shape,origin)
+
+                mb = scarlet.bbox.Box(shape,origin)
+                frame_slices, model_slices = overlapped_slices(fb, mb)
+                result = np.zeros(fb.shape)
+                result[frame_slices] = srcmodel[model_slices]
+
+
+                bandmodel += result
+            model[i]=bandmodel
+
+
+        #ps=PSNR(d,model,luptonize)
+    
+    return objectsG,objectsR,objectsI,model
+    
+  
+        
+def return_spliced_sources(sourceG,sourceR,sourceI):
+    wmin = np.array([sourceG.shape[0],sourceR.shape[0],sourceI.shape[0]]).min()
+    hmin = np.array([sourceG.shape[1],sourceR.shape[1],sourceI.shape[1]]).min()
+
+    sources=[]
+    for source in [sourceG,sourceR,sourceI]:
+        if source.shape[0]>wmin:
+            source = source[(source.shape[0]-wmin)//2:-(source.shape[0]-wmin)//2,:]
+        if source.shape[1]>hmin:
+            source = source[:,(source.shape[1]-hmin)//2:-(source.shape[1]-hmin)//2]
+        sources.append(source)
+
+    return sources
+
+
