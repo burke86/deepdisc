@@ -100,6 +100,7 @@ class SaveHook(HookBase):
     def set_output_name(self, name):
         self.output_name = name
     def after_train(self):
+        print('saving', self.output_name)
         self.trainer.checkpointer.save(self.output_name) # Note: Set the name of the output model here
         
 

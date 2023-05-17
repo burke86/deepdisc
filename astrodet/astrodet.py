@@ -1,7 +1,7 @@
 import sys, os
 import numpy as np
-from detectron2.engine import DefaultTrainer
-from detectron2.engine import SimpleTrainer
+from detectron2.engine import DefaultTrainer,DefaultPredictor,SimpleTrainer
+from detectron2.engine.defaults import create_ddp_model
 from typing import Dict, List, Optional, Mapping
 import detectron2.solver as solver
 import detectron2.modeling as modeler
@@ -31,7 +31,6 @@ import matplotlib.pyplot as plt
 
 # import some common detectron2 utilities
 from detectron2 import model_zoo
-from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
 from detectron2.utils.visualizer import Visualizer
 from detectron2.data import MetadataCatalog, DatasetCatalog
@@ -50,7 +49,7 @@ from torch.nn.parallel import DistributedDataParallel
 
 import detectron2.data.transforms as T
 from detectron2.checkpoint import DetectionCheckpointer
-from detectron2.config import CfgNode, LazyConfig
+from detectron2.config import CfgNode, LazyConfig, instantiate
 from detectron2.data import (
     MetadataCatalog,
     build_detection_test_loader,
@@ -92,6 +91,8 @@ import datetime
 from pycocotools.coco import COCO
 from pycocotools.cocoeval import COCOeval
 from tabulate import tabulate
+from iopath.common.file_io import file_lock
+import shutil
 
 import detectron2.utils.comm as comm
 #yufeng 6/11 import cocoevaluator
@@ -100,10 +101,9 @@ from detectron2.config import CfgNode
 from detectron2.data import MetadataCatalog
 from detectron2.data.datasets.coco import convert_to_coco_json
 from detectron2.evaluation.fast_eval_api import COCOeval_opt
-from detectron2.structures import Boxes, BoxMode, pairwise_iou
+from detectron2.structures import Boxes, BoxMode, pairwise_iou, PolygonMasks, RotatedBoxes
 from detectron2.utils.file_io import PathManager
 from detectron2.utils.logger import create_small_table
-
 import imgaug.augmenters as iaa
 import imgaug.augmenters.flip as flip
 from . import detectron as detectron_addons
@@ -112,6 +112,8 @@ from . import detectron as detectron_addons
 from detectron2.structures import BoxMode
 import glob
 from astropy.io import fits
+from PIL import Image, ImageEnhance
+from astropy.visualization import make_lupton_rgb
 import gc
 
 
@@ -185,12 +187,13 @@ class NewAstroTrainer(SimpleTrainer):
         data = next(self._data_loader_iter)
         # Note: in training mode, model() returns loss
         loss_dict = self.model(data)
-        #print('Loss dict',loss_dict)
+        #print('Loss dict',loss_dict.values())
         if isinstance(loss_dict, torch.Tensor):
             losses = loss_dict
             loss_dict = {"total_loss": loss_dict}
         else:
             losses = sum(loss_dict.values())
+            all_losses = [l.cpu().detach().item() for l in loss_dict.values()]
         self.optimizer.zero_grad()
         losses.backward()
         
@@ -202,7 +205,8 @@ class NewAstroTrainer(SimpleTrainer):
         
         self.lossList.append(losses.cpu().detach().numpy())
         if self.iterCount % self.period == 0 and comm.is_main_process():
-            print("Iteration: ", self.iterCount, " time: ", data_time," loss: ",losses.cpu().detach().numpy(), "val loss: ",self.valloss, "lr: ", self.scheduler.get_lr())
+            #print("Iteration: ", self.iterCount, " time: ", data_time," loss: ",losses.cpu().detach().numpy(), "val loss: ",self.valloss, "lr: ", self.scheduler.get_lr())
+            print("Iteration: ", self.iterCount, " time: ", data_time,loss_dict.keys(),all_losses, "val loss: ",self.valloss, "lr: ", self.scheduler.get_lr())
 
         del data
         gc.collect()
@@ -299,15 +303,25 @@ class AstroPredictor:
         outputs = pred(inputs)
     """
 
-    def __init__(self, cfg):
-        self.cfg = cfg.clone()  # cfg can be modified by model
-        self.model = build_model(self.cfg)
-        self.model.eval()
-        if len(cfg.DATASETS.TEST):
-            self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
+    def __init__(self, cfg, lazy=False,cfglazy=None):
+        if lazy:
+            self.cfg = cfg.clone()  # cfg can be modified by model
+            self.cfglazy = cfglazy 
+            self.model = instantiate(self.cfglazy.model)
+            self.model.to(self.cfglazy.train.device)
+            self.model = create_ddp_model(self.model)
+            self.model.eval()
+            checkpointer = DetectionCheckpointer(self.model,cfg.OUTPUT_DIR)
+            checkpointer.load(cfglazy.train.init_checkpoint)
+        else:
+            self.cfg = cfg.clone()  # cfg can be modified by model
+            self.model = build_model(self.cfg)
+            self.model.eval()
+            if len(cfg.DATASETS.TEST):
+                self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
 
-        checkpointer = DetectionCheckpointer(self.model)
-        checkpointer.load(cfg.MODEL.WEIGHTS)
+            checkpointer = DetectionCheckpointer(self.model)
+            checkpointer.load(cfg.MODEL.WEIGHTS)
 
         self.aug = T.ResizeShortestEdge(
             [cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MIN_SIZE_TEST], cfg.INPUT.MAX_SIZE_TEST
@@ -453,14 +467,17 @@ class COCOeval_opt_custom(COCOeval_opt):
                     dtm  = np.concatenate([e['dtMatches'][:,0:maxDet] for e in E], axis=1)[:,inds]
                     dtIg = np.concatenate([e['dtIgnore'][:,0:maxDet]  for e in E], axis=1)[:,inds]
                     gtIg = np.concatenate([e['gtIgnore'] for e in E])
-                    npig = np.count_nonzero(gtIg==0 )
+
+                    npig = np.count_nonzero(gtIg==0)
+                    #print('npig', npig)
                     if npig == 0:
                         continue
                     tps = np.logical_and(               dtm,  np.logical_not(dtIg) )
                     fps = np.logical_and(np.logical_not(dtm), np.logical_not(dtIg) )
-
+                    #print('tps cumsum', np.cumsum(tps))
                     tp_sum = np.cumsum(tps, axis=1).astype(dtype=np.float)
                     fp_sum = np.cumsum(fps, axis=1).astype(dtype=np.float)
+                    #print('TP and FP sums', tp_sum.shape, fp_sum.shape)
                     for t, (tp, fp) in enumerate(zip(tp_sum, fp_sum)):
                         tp = np.array(tp)
                         fp = np.array(fp)
@@ -504,11 +521,9 @@ class COCOeval_opt_custom(COCOeval_opt):
 
 
 def _evaluate_predictions_on_coco(
-        coco_gt, coco_results, iou_type, kpt_oks_sigmas=None, use_fast_impl=True, img_ids=None
+        coco_gt, coco_results, iou_type, kpt_oks_sigmas=None, use_fast_impl=True, img_ids=None, max_dets_per_image=None
     ):
-        """YL: Override this function just to set maxDets to 200"""
-
-        
+    
         #Evaluate the coco results using COCOEval API.
         assert len(coco_results) > 0
         print("_evaluate_predictions_on_coco")
@@ -547,12 +562,193 @@ def _evaluate_predictions_on_coco(
                 "They have to agree with each other. For meaning of OKS, please refer to "
                 "http://cocodataset.org/#keypoints-eval."
             )
-        coco_eval.params.maxDets = [1,10,500] # by default it is [1,10,100], our datasets have more than 100 instances
+        print(max_dets_per_image)
+        coco_eval.params.maxDets = max_dets_per_image # by default it is [1,10,100], our datasets have more than 100 instances
         coco_eval.evaluate_custom()
         coco_eval.accumulate_custom()
         coco_eval.summarize()
         return coco_eval
     
+
+
+def convert_to_coco_dict(dataset_name,mbins,mind,logger):
+    """
+    Convert an instance detection/segmentation or keypoint detection dataset
+    in detectron2's standard format into COCO json format.
+
+    Generic dataset description can be found here:
+    https://detectron2.readthedocs.io/tutorials/datasets.html#register-a-dataset
+
+    COCO data format description can be found here:
+    http://cocodataset.org/#format-data
+
+    Args:
+        dataset_name (str):
+            name of the source dataset
+            Must be registered in DatastCatalog and in detectron2's standard format.
+            Must have corresponding metadata "thing_classes"
+    Returns:
+        coco_dict: serializable dict in COCO json format
+    """
+    dataset_dicts = DatasetCatalog.get(dataset_name)
+    metadata = MetadataCatalog.get(dataset_name)
+
+    # unmap the category mapping ids for COCO
+    if hasattr(metadata, "thing_dataset_id_to_contiguous_id"):
+        reverse_id_mapping = {v: k for k, v in metadata.thing_dataset_id_to_contiguous_id.items()}
+        reverse_id_mapper = lambda contiguous_id: reverse_id_mapping[contiguous_id]  # noqa
+    else:
+        reverse_id_mapper = lambda contiguous_id: contiguous_id  # noqa
+
+    categories = [
+        {"id": reverse_id_mapper(id), "name": name}
+        for id, name in enumerate(metadata.thing_classes)
+    ]
+
+    logger.info("Converting dataset dicts into COCO format")
+    coco_images = []
+    coco_annotations = []
+
+    for image_id, image_dict in enumerate(dataset_dicts):
+        coco_image = {
+            "id": image_dict.get("image_id", image_id),
+            "width": int(image_dict["width"]),
+            "height": int(image_dict["height"]),
+            "file_name": str(image_dict["file_name"]),
+        }
+        coco_images.append(coco_image)
+
+        anns_per_image = image_dict.get("annotations", [])
+        for annotation in anns_per_image:
+            # create a new dict with only COCO fields
+            coco_annotation = {}
+
+            # COCO requirement: XYWH box format for axis-align and XYWHA for rotated
+            bbox = annotation["bbox"]
+            if isinstance(bbox, np.ndarray):
+                if bbox.ndim != 1:
+                    raise ValueError(f"bbox has to be 1-dimensional. Got shape={bbox.shape}.")
+                bbox = bbox.tolist()
+            if len(bbox) not in [4, 5]:
+                raise ValueError(f"bbox has to has length 4 or 5. Got {bbox}.")
+            from_bbox_mode = annotation["bbox_mode"]
+            to_bbox_mode = BoxMode.XYWH_ABS if len(bbox) == 4 else BoxMode.XYWHA_ABS
+            bbox = BoxMode.convert(bbox, from_bbox_mode, to_bbox_mode)
+
+            # COCO requirement: instance area
+            if "segmentation" in annotation:
+                # Computing areas for instances by counting the pixels
+                segmentation = annotation["segmentation"]
+                # TODO: check segmentation type: RLE, BinaryMask or Polygon
+                if isinstance(segmentation, list):
+                    polygons = PolygonMasks([segmentation])
+                    area = polygons.area()[0].item()
+                elif isinstance(segmentation, dict):  # RLE
+                    area = mask_util.area(segmentation).item()
+                else:
+                    raise TypeError(f"Unknown segmentation type {type(segmentation)}!")
+            else:
+                # Computing areas using bounding boxes
+                if to_bbox_mode == BoxMode.XYWH_ABS:
+                    bbox_xy = BoxMode.convert(bbox, to_bbox_mode, BoxMode.XYXY_ABS)
+                    area = Boxes([bbox_xy]).area()[0].item()
+                else:
+                    area = RotatedBoxes([bbox]).area()[0].item()
+
+            if "keypoints" in annotation:
+                keypoints = annotation["keypoints"]  # list[int]
+                for idx, v in enumerate(keypoints):
+                    if idx % 3 != 2:
+                        # COCO's segmentation coordinates are floating points in [0, H or W],
+                        # but keypoint coordinates are integers in [0, H-1 or W-1]
+                        # For COCO format consistency we substract 0.5
+                        # https://github.com/facebookresearch/detectron2/pull/175#issuecomment-551202163
+                        keypoints[idx] = v - 0.5
+                if "num_keypoints" in annotation:
+                    num_keypoints = annotation["num_keypoints"]
+                else:
+                    num_keypoints = sum(kp > 0 for kp in keypoints[2::3])
+
+            # COCO requirement:
+            #   linking annotations to images
+            #   "id" field must start with 1
+            coco_annotation["id"] = len(coco_annotations) + 1
+            coco_annotation["image_id"] = coco_image["id"]
+            coco_annotation["bbox"] = [round(float(x), 3) for x in bbox]
+            coco_annotation["area"] = float(area)
+            coco_annotation["iscrowd"] = int(annotation.get("iscrowd", 0))
+            #coco_annotation["iscrowd"] = 1 if annotation.get('imag')>24 else 0
+            #coco_annotation["ignore"] = 1 if annotation.get('imag')>24 else 0
+            if mind != len(mbins)-1 and mind != -1:
+                coco_annotation["ignore"] = 0 if annotation.get('imag')>mbins[mind] and annotation.get('imag')<=mbins[mind+1] else 1
+            elif mind==len(mbins)-1:
+                coco_annotation["ignore"] = 0 if annotation.get('imag')>mbins[mind] else 1
+            else:
+                coco_annotation["ignore"] = int(annotation.get("ignore", 0))
+
+            coco_annotation["category_id"] = int(reverse_id_mapper(annotation["category_id"]))
+            
+            
+            # Add optional fields
+            if "keypoints" in annotation:
+                coco_annotation["keypoints"] = keypoints
+                coco_annotation["num_keypoints"] = num_keypoints
+
+            if "segmentation" in annotation:
+                seg = coco_annotation["segmentation"] = annotation["segmentation"]
+                if isinstance(seg, dict):  # RLE
+                    counts = seg["counts"]
+                    if not isinstance(counts, str):
+                        # make it json-serializable
+                        seg["counts"] = counts.decode("ascii")
+
+            coco_annotations.append(coco_annotation)
+
+    logger.info(
+        "Conversion finished, "
+        f"#images: {len(coco_images)}, #annotations: {len(coco_annotations)}"
+    )
+
+    info = {
+        "date_created": str(datetime.datetime.now()),
+        "description": "Automatically generated COCO json file for Detectron2.",
+    }
+    coco_dict = {"info": info, "images": coco_images, "categories": categories, "licenses": None}
+    if len(coco_annotations) > 0:
+        coco_dict["annotations"] = coco_annotations
+    return coco_dict
+
+
+def convert_to_coco_json(dataset_name, output_file, mbins=[0,1],mind=-1, allow_cached=True):
+    """
+    Converts dataset into COCO format and saves it to a json file.
+    dataset_name must be registered in DatasetCatalog and in detectron2's standard format.
+
+    Args:
+        dataset_name:
+            reference from the config file to the catalogs
+            must be registered in DatasetCatalog and in detectron2's standard format
+        output_file: path of json file that will be saved to
+        allow_cached: if json file is already present then skip conversion
+    """
+
+    logger = logging.getLogger(__name__)
+    PathManager.mkdirs(os.path.dirname(output_file))
+    with file_lock(output_file):
+        if PathManager.exists(output_file) and allow_cached:
+            logger.warning(
+                f"Using previously cached COCO format annotations at '{output_file}'. "
+                "You need to clear the cache file if your dataset has been modified."
+            )
+        else:
+            logger.info(f"Converting annotations of dataset '{dataset_name}' to COCO format ...)")
+            coco_dict = convert_to_coco_dict(dataset_name,mbins,mind,logger)
+
+            logger.info(f"Caching COCO format annotations at '{output_file}' ...")
+            tmp_file = output_file + ".tmp"
+            with PathManager.open(tmp_file, "w") as f:
+                json.dump(coco_dict, f)
+            shutil.move(tmp_file, output_file)
 
 class COCOEvaluatorRecall(COCOEvaluator):
 
@@ -569,11 +765,120 @@ class COCOEvaluatorRecall(COCOEvaluator):
     In addition to COCO, this evaluator is able to support any bounding box detection,
     instance segmentation, or keypoint detection dataset.
     """
+
+
+    def __init__(
+        self,
+        dataset_name,
+        tasks=None,
+        distributed=True,
+        output_dir=None,
+        *,
+        max_dets_per_image=None,
+        use_fast_impl=True,
+        kpt_oks_sigmas=(),
+        allow_cached_coco=True,
+    ):
+        """
+        Args:
+            dataset_name (str): name of the dataset to be evaluated.
+                It must have either the following corresponding metadata:
+                    "json_file": the path to the COCO format annotation
+                Or it must be in detectron2's standard dataset format
+                so it can be converted to COCO format automatically.
+            tasks (tuple[str]): tasks that can be evaluated under the given
+                configuration. A task is one of "bbox", "segm", "keypoints".
+                By default, will infer this automatically from predictions.
+            distributed (True): if True, will collect results from all ranks and run evaluation
+                in the main process.
+                Otherwise, will only evaluate the results in the current process.
+            output_dir (str): optional, an output directory to dump all
+                results predicted on the dataset. The dump contains two files:
+                1. "instances_predictions.pth" a file that can be loaded with `torch.load` and
+                   contains all the results in the format they are produced by the model.
+                2. "coco_instances_results.json" a json file in COCO's result format.
+            max_dets_per_image (int): limit on the maximum number of detections per image.
+                By default in COCO, this limit is to 100, but this can be customized
+                to be greater, as is needed in evaluation metrics AP fixed and AP pool
+                (see https://arxiv.org/pdf/2102.01066.pdf)
+                This doesn't affect keypoint evaluation.
+            use_fast_impl (bool): use a fast but **unofficial** implementation to compute AP.
+                Although the results should be very close to the official implementation in COCO
+                API, it is still recommended to compute results with the official API for use in
+                papers. The faster implementation also uses more RAM.
+            kpt_oks_sigmas (list[float]): The sigmas used to calculate keypoint OKS.
+                See http://cocodataset.org/#keypoints-eval
+                When empty, it will use the defaults in COCO.
+                Otherwise it should be the same length as ROI_KEYPOINT_HEAD.NUM_KEYPOINTS.
+            allow_cached_coco (bool): Whether to use cached coco json from previous validation
+                runs. You should set this to False if you need to use different validation data.
+                Defaults to True.
+        """
+
+        self._logger = logging.getLogger(__name__)
+        self._distributed = distributed
+        self._output_dir = output_dir
+
+        if use_fast_impl and (COCOeval_opt is COCOeval):
+            self._logger.info("Fast COCO eval is not built. Falling back to official COCO eval.")
+            use_fast_impl = False
+        self._use_fast_impl = use_fast_impl
+
+        # COCOeval requires the limit on the number of detections per image (maxDets) to be a list
+        # with at least 3 elements. The default maxDets in COCOeval is [1, 10, 100], in which the
+        # 3rd element (100) is used as the limit on the number of detections per image when
+        # evaluating AP. COCOEvaluator expects an integer for max_dets_per_image, so for COCOeval,
+        # we reformat max_dets_per_image into [1, 10, max_dets_per_image], based on the defaults.
+        if max_dets_per_image is None:
+            max_dets_per_image = [1, 10, 100]
+        else:
+            max_dets_per_image = [1, 10, max_dets_per_image]
+        self._max_dets_per_image = max_dets_per_image
+
+        if tasks is not None and isinstance(tasks, CfgNode):
+            kpt_oks_sigmas = (
+                tasks.TEST.KEYPOINT_OKS_SIGMAS if not kpt_oks_sigmas else kpt_oks_sigmas
+            )
+            self._logger.warn(
+                "COCO Evaluator instantiated using config, this is deprecated behavior."
+                " Please pass in explicit arguments instead."
+            )
+            self._tasks = None  # Infering it from predictions should be better
+        else:
+            self._tasks = tasks
+
+        self._cpu_device = torch.device("cpu")
+
+        self._metadata = MetadataCatalog.get(dataset_name)
+        if not hasattr(self._metadata, "json_file"):
+            if output_dir is None:
+                raise ValueError(
+                    "output_dir must be provided to COCOEvaluator "
+                    "for datasets not in COCO format."
+                )
+            self._logger.info(f"Trying to convert '{dataset_name}' to COCO format ...")
+
+            cache_path = os.path.join(output_dir, f"{dataset_name}_coco_format.json")
+            self._metadata.json_file = cache_path
+            convert_to_coco_json(dataset_name, cache_path, allow_cached=allow_cached_coco)
+        json_file = PathManager.get_local_path(self._metadata.json_file)
+        print('Loading ', json_file)
+        with contextlib.redirect_stdout(io.StringIO()):
+            self._coco_api = COCO(json_file)
+
+        # Test set json files do not contain annotations (evaluation must be
+        # performed using the COCO evaluation server).
+        self._do_evaluation = "annotations" in self._coco_api.dataset
+        if self._do_evaluation:
+            self._kpt_oks_sigmas = kpt_oks_sigmas
+
+
     def _eval_predictions(self, predictions, img_ids=None):
         
         #Evaluate predictions. Fill self._results with the metrics of the tasks.
         
         self._logger.info("Preparing results for COCO format ...")
+        #for splitting by magnitude, take the instances that are matched to objects with that mag thresh
         coco_results = list(itertools.chain(*[x["instances"] for x in predictions]))
         tasks = self._tasks or self._tasks_from_predictions(coco_results)
 
@@ -610,6 +915,9 @@ class COCOEvaluatorRecall(COCOEvaluator):
                 "unofficial" if self._use_fast_impl else "official"
             )
         )
+
+        self.coco_eval_list=[]
+
         for task in sorted(tasks):
             assert task in {"bbox", "segm", "keypoints"}, f"Got unknown task: {task}!"
             print(self._kpt_oks_sigmas)
@@ -621,10 +929,13 @@ class COCOEvaluatorRecall(COCOEvaluator):
                     kpt_oks_sigmas = None,
                     use_fast_impl=self._use_fast_impl,
                     img_ids=img_ids,
+                    max_dets_per_image=self._max_dets_per_image
                 )
                 if len(coco_results) > 0
                 else None  # cocoapi does not handle empty results very well
             )
+
+            self.coco_eval_list.append(coco_eval)
 
             res = self._derive_coco_results(
                 coco_eval, task, class_names=self._metadata.get("thing_classes")
@@ -709,12 +1020,45 @@ class COCOEvaluatorRecall(COCOEvaluator):
     
 
 
-def read_image(filename, normalize='lupton', stretch=5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8, A=1e4):
+
+
+
+def read_image(filenames, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8, A=1e4, do_norm=True):
+    def norm(z,r,g):
+        max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
+        print(max_RGB)
+
+        max_z=np.nanpercentile([z], ceil_percentile)
+        max_r=np.nanpercentile([r], ceil_percentile)
+        max_g=np.nanpercentile([g], ceil_percentile)
+
+        #z = np.clip(z,None,max_RGB)
+        #r = np.clip(r,None,max_RGB)
+        #g = np.clip(g,None,max_RGB)
+
+        # avoid saturation
+        r = r/max_RGB; g = g/max_RGB; z = z/max_RGB
+        #r = r/max_r; g = g/max_g; z = z/max_z
+
+        # Rescale to 0-255 for dtype=np.uint8
+        max_dtype = np.iinfo(dtype).max
+        r = r*max_dtype
+        g = g*max_dtype
+        z = z*max_dtype
+
+        # 0-255 RGB image
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+
+        return image
+    
     
     # Read image
-    g = fits.getdata(os.path.join(filename+'_g.fits'), memmap=False)
-    r = fits.getdata(os.path.join(filename+'_r.fits'), memmap=False)
-    z = fits.getdata(os.path.join(filename+'_z.fits'), memmap=False)
+    
+    g = fits.getdata(os.path.join(filenames[0]), memmap=False)
+    r = fits.getdata(os.path.join(filenames[1]), memmap=False)
+    z = fits.getdata(os.path.join(filenames[2]), memmap=False)
     
     # Contrast scaling / normalization
     I = (z + r + g)/3.0
@@ -722,64 +1066,136 @@ def read_image(filename, normalize='lupton', stretch=5, Q=10, m=0, ceil_percenti
     length, width = g.shape
     image = np.empty([length, width, 3], dtype=dtype)
     
+    #asinh(Q (I - minimum)/stretch)/Q
+    
     # Options for contrast scaling
-    if normalize.lower() == 'lupton':
+    if normalize.lower() == 'lupton' or normalize.lower() == 'luptonhc':
         z = z*np.arcsinh(stretch*Q*(I - m))/(Q*I)
         r = r*np.arcsinh(stretch*Q*(I - m))/(Q*I)
         g = g*np.arcsinh(stretch*Q*(I - m))/(Q*I)
+        
+        #z = z*np.arcsinh(Q*(I - m)/stretch)/(Q)
+        #r = r*np.arcsinh(Q*(I - m)/stretch)/(Q)
+        #g = g*np.arcsinh(Q*(I - m)/stretch)/(Q)
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        if do_norm:
+            return norm(z,r,g)
+        else:
+            return image
+    
+    elif normalize.lower() == 'astrolupton':
+        image = make_lupton_rgb(z, r, g, minimum=m, stretch=stretch, Q=Q)
+        return image
     
     elif normalize.lower() == 'zscore':
-        Isigma = I*np.mean([np.nanstd(g), np.nanstd(r), np.nanstd(z)])
-        z = (z - np.nanmean(z) - m)/Isigma
-        r = (r - np.nanmean(r) - m)/Isigma
-        g = (g - np.nanmean(g) - m)/Isigma
+        Imean = np.nanmean(I)
+        Isigma = np.nanstd(I)
+
+        z = A*(z - Imean - m)/Isigma
+        r = A*(r - Imean - m)/Isigma
+        g = A*(g - Imean - m)/Isigma
         
-    elif normalize.lower() == 'linear':
-        z = (z - m)/I
-        r = (r - m)/I
-        g = (g - m)/I
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        if do_norm:
+            return norm(z,r,g)
+        else:
+            return image
+        
+        
+    elif normalize.lower() == 'zscore_orig':
+        
+        zsigma = np.nanstd(z)
+        rsigma = np.nanstd(r)
+        gsigma = np.nanstd(g)
+        
+        z = A*(z - np.nanmean(z) - m)/zsigma
+        r = A*(r - np.nanmean(r) - m)/rsigma
+        g = A*(g - np.nanmean(g) - m)/gsigma
+
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        
+        return image
         
     elif normalize.lower() == 'sinh':
-        z = np.sinh((z-m)/I)
-        r = np.sinh((r-m)/I)
-        g = np.sinh((g-m)/I)    
+        z = np.sinh((z-m))
+        r = np.sinh((r-m))
+        g = np.sinh((g-m))
+
         
+    #sqrt(Q (I - minimum)/stretch)/Q
     elif normalize.lower() == 'sqrt':
-        z = np.sqrt((z-m)/I)
-        r = np.sqrt((r-m)/I)
-        g = np.sqrt((g-m)/I)
+        z = z*np.sqrt((I-m)*Q/stretch)/I/stretch
+        r = r*np.sqrt((I-m)*Q/stretch)/I/stretch
+        g = g*np.sqrt((I-m)*Q/stretch)/I/stretch
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        if do_norm:
+            return norm(z,r,g)
+        else:
+            return image
         
+        
+    elif normalize.lower() == 'sqrt-old':
+        z = np.sqrt(z)
+        r = np.sqrt(r)
+        g = np.sqrt(g)
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        if do_norm:
+            return norm(z,r,g)
+        else:
+            return image
+    
+    
     elif normalize.lower() == 'linear':
-        z = (z - m)/I
-        r = (r - m)/I
-        g = (g - m)/I    
+        z = A*(z - m)
+        r = A*(r - m)
+        g = A*(g - m)
+        #z = (z - m)
+        #r = (r - m)
+        #g = (g - m)       
         
-    elif normalize.lower()== 'raw':
-        image = np.zeros([length, width, 3])
         image[:,:,0] = z # R
         image[:,:,1] = r # G
         image[:,:,2] = g # B
         return image
-     
+        
+    elif normalize.lower() == 'normlinear':
+        #image = np.empty([length, width, 3], dtype=dtype)
+
+        z = A*(z - m)
+        r = A*(r - m)
+        g = A*(g - m)
+        #z = (z - m)
+        #r = (r - m)
+        #g = (g - m)       
+        
+        #image[:,:,0] = z # R
+        #image[:,:,1] = r # G
+        #image[:,:,2] = g # B
+        #return image
+    
+    
+    elif normalize.lower() == 'astroluptonhc':
+        image = make_lupton_rgb(z, r, g, minimum=m, stretch=stretch, Q=Q)
+        factor = 2 #gives original image
+        cenhancer = ImageEnhance.Contrast(Image.fromarray(image))
+        im_output = cenhancer.enhance(factor)
+        benhancer = ImageEnhance.Brightness(im_output)
+        image = benhancer.enhance(factor)
+        image = np.asarray(image)
+        return image
+
     else:
         print('Normalize keyword not recognized.')
-
-    max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
-    # avoid saturation
-    r = r/max_RGB; g = g/max_RGB; z = z/max_RGB
-
-    # Rescale to 0-255 for dtype=np.uint8
-    max_dtype = np.iinfo(dtype).max
-    r = r*max_dtype
-    g = g*max_dtype
-    z = z*max_dtype
-
-    # 0-255 RGB image
-    image[:,:,0] = z # R
-    image[:,:,1] = r # G
-    image[:,:,2] = g # B
-    
-    return image
 
 
 
