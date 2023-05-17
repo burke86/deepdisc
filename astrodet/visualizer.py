@@ -381,7 +381,7 @@ class Visualizer:
         self._instance_mode = instance_mode
         self.keypoint_threshold = _KEYPOINT_THRESHOLD
 
-    def draw_instance_predictions(self, predictions, alpha=0.5, lf=True, ls='-'):
+    def draw_instance_predictions(self, predictions, alpha=0.5, lf=True, ls='-',boxf=False):
         """
         Draw instance-level prediction results on an image.
 
@@ -430,7 +430,9 @@ class Visualizer:
                 )
             )
             #alpha = 0.3
-
+        
+        if not boxf:
+            boxes=None
 
         self.overlay_instances(
             masks=masks,
@@ -545,7 +547,7 @@ class Visualizer:
 
     draw_panoptic_seg_predictions = draw_panoptic_seg  # backward compatibility
 
-    def draw_dataset_dict(self, dic, lf=True):
+    def draw_dataset_dict(self, dic, lf=True,boxf=True,alpha=0.5,ls='-'):
         """
         Draw annotations/segmentaions in Detectron2 Dataset format.
 
@@ -592,9 +594,11 @@ class Visualizer:
             
             if not lf:
                 labels=None
+            if not boxf:
+                boxes=None
             
             self.overlay_instances(
-                labels=labels, boxes=boxes, masks=masks, keypoints=keypts, assigned_colors=colors
+                labels=labels, boxes=boxes, masks=masks, keypoints=keypts, assigned_colors=colors, alpha=alpha, ls=ls
             )
 
         sem_seg = dic.get("sem_seg", None)

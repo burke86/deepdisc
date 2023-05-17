@@ -1,6 +1,6 @@
 import sys, os
 import numpy as np
-
+import time
 import scarlet
 import sep
 import scarlet.wavelet
@@ -230,7 +230,9 @@ def make_catalog(datas, lvl=4, wave=True, segmentation_map=False, maskthresh=10.
     if type(datas) is np.ndarray:
         hr_images = datas / np.sum(datas, axis=(1, 2))[:, None, None]
         # Detection image as the sum over all images
-        detect_image = np.sum(hr_images, axis=0)
+        #detect_image = np.sum(hr_images, axis=0)
+        detect_image = np.sum(datas, axis=0)
+
     else:
         data_lr, data_hr = datas
         # Create observations for each image
@@ -482,7 +484,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
                 starlet_thresh=0.1, lvl=5, lvl_segmask=2, maskthresh=0.025,
                 segmentation_map=True, plot_wavelet=False, plot_likelihood=True,
                 plot_scene=False, plot_sources=False, add_ellipses=True,
-                add_labels=False, add_boxes=False,percentiles=(1,99),savefigs=False,figpath=''):
+                add_labels=False, add_boxes=False,percentiles=(1,99),savefigs=False,figpath='',weights=None):
 
     
     """ Run P. Melchior's scarlet (https://github.com/pmelchior/scarlet) implementation 
@@ -522,12 +524,16 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     norm = scarlet.display.AsinhPercentileNorm(datas,percentiles=percentiles)   
 
     # Generate source catalog using wavelets
-    catalog, bg_rms_hsc = make_catalog(datas, lvl, wave=True)
+    t0 = time.time()
+    catalog, bg_rms_hsc = make_catalog(datas, lvl, wave=False)
+    print(time.time()-t0)
     # If image is already background subtracted, weights are set to 1
     if subtract_background:
         weights = np.ones_like(datas) / (bg_rms_hsc**2)[:, None, None]
     else:
         weights = np.ones_like(datas)
+    
+    
     
     print("Source catalog found ", len(catalog), "objects")
     
@@ -555,7 +561,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     
     # Array of chi^2 residuals computed after fit on each model
     chi2s = np.zeros(len(catalog))
-    
+    t0 = time.time()
     # Loop through detections in catalog
     starlet_sources = []
     for k, src in enumerate(catalog):
@@ -575,6 +581,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     # Fit scarlet blend
     starlet_blend, logL = fit_scarlet_blend(starlet_sources, observation, catalog,max_iters=max_iters, 
                                             plot_likelihood=plot_likelihood,savefigs=savefigs,figpath=figpath)
+    print(time.time()-t0)
 
     
     print("Computing residuals.")
@@ -589,7 +596,6 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         # Compute in bbox only
         res = src.bbox.extract_from(res)
         chi2s[k] = np.sum(res**2)
-
         # Replace models with poor fits with StarletSource models
         if chi2s[k] > max_chi2:
             starlet_sources[k] = scarlet.StarletSource(model_frame,
@@ -644,11 +650,35 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
             # For some reason sep doesn't like these images, so do the segmask ourselves for now
             model_det = np.array(model[0,:,:])
             mask = np.zeros_like(model_det)
-            mask[model_det>maskthresh] = 1
+            mask[model_det>lvl_segmask*bg_rms_hsc[0]] = 1
             segmentation_masks.append(mask)
             #plt.imshow(mask)
             #plt.show()
         catalog_deblended.append(cat)
+        '''
+        try:
+            catalog,mask = sep.extract(model, lvl_segmask, err=bg_rms_hsc, segmentation_map=True)
+        except:
+            print('Exception with source {i} in file ')
+            #exceptions.append(i)
+            mask = np.zeros_like(model)
+            mask[model>lvl_segmask*bg_rms_hsc] = 1
+            catalog=[]
+
+        # If more than 1 source is detected for some reason (e.g. artifacts)
+        if len(catalog) > 1:
+            print('More than 1 source for object ', i, ' in file ')
+            # keep the brightest
+            idx = np.argmax([c['cflux'] for c in catalog])
+            catalog = catalog[idx]
+            mask[mask!=idx]=0
+
+        segmentation_masks.append(mask)
+        catalog_deblended.append(catalog)
+        '''
+
+        
+        
         
     # Combine catalog named array
     catalog_deblended = np.vstack(catalog_deblended)
