@@ -729,7 +729,6 @@ def main(tl,dataset_names,train_head,args):
         _test_mapper = test_mapper_cls(normalize=args.norm,ceil_percentile=args.cp,
         dtype=dtype,A=args.A,stretch=args.stretch,Q=args.Q,do_norm=args.do_norm)
 
-
         model = instantiate(cfg.model)
 
         #VitDet model doesn't fit fully into memory if training the whole thing
@@ -750,7 +749,6 @@ def main(tl,dataset_names,train_head,args):
         cfg.optimizer.params.model = model
         cfg.optimizer.lr=0.0001
         optimizer = instantiate(cfg.optimizer)
-
 
         #optimizer = solver.build_optimizer(cfg, model)
         loader = data.build_detection_train_loader(cfg_loader, mapper=_train_mapper)

@@ -523,6 +523,8 @@ def main(tl,dataset_names,train_head,args):
     val_per = epoch
     #val_per = 100
 
+    cfg.MODEL.ROI_BOX_HEAD.USE_SIGMOID_CE= True
+
     if train_head:
 
         # Step 1)
