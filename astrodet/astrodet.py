@@ -1023,7 +1023,7 @@ class COCOEvaluatorRecall(COCOEvaluator):
 
 
 
-def read_image(filenames, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8, A=1e4, do_norm=True):
+def read_image_hsc(filenames, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8, A=1e4, do_norm=False):
     def norm(z,r,g):
         max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
         print(max_RGB)
@@ -1055,7 +1055,6 @@ def read_image(filenames, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_perce
     
     
     # Read image
-    
     g = fits.getdata(os.path.join(filenames[0]), memmap=False)
     r = fits.getdata(os.path.join(filenames[1]), memmap=False)
     z = fits.getdata(os.path.join(filenames[2]), memmap=False)
@@ -1197,7 +1196,178 @@ def read_image(filenames, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_perce
     else:
         print('Normalize keyword not recognized.')
 
+def read_image_decam(filename, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8, A=1e4, do_norm=False):
+    def norm(z,r,g):
+        max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
+        print(max_RGB)
 
+        max_z=np.nanpercentile([z], ceil_percentile)
+        max_r=np.nanpercentile([r], ceil_percentile)
+        max_g=np.nanpercentile([g], ceil_percentile)
+
+        #z = np.clip(z,None,max_RGB)
+        #r = np.clip(r,None,max_RGB)
+        #g = np.clip(g,None,max_RGB)
+
+        # avoid saturation
+        r = r/max_RGB; g = g/max_RGB; z = z/max_RGB
+        #r = r/max_r; g = g/max_g; z = z/max_z
+
+        # Rescale to 0-255 for dtype=np.uint8
+        max_dtype = np.iinfo(dtype).max
+        r = r*max_dtype
+        g = g*max_dtype
+        z = z*max_dtype
+
+        # 0-255 RGB image
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+
+        return image
+    
+    
+    # Read image
+    g = fits.getdata(os.path.join(filename+'_g.fits'), memmap=False)
+    r = fits.getdata(os.path.join(filename+'_r.fits'), memmap=False)
+    z = fits.getdata(os.path.join(filename+'_z.fits'), memmap=False)
+    
+    # Contrast scaling / normalization
+    I = (z + r + g)/3.0
+    
+    length, width = g.shape
+    image = np.empty([length, width, 3], dtype=dtype)
+    
+    #asinh(Q (I - minimum)/stretch)/Q
+    
+    # Options for contrast scaling
+    if normalize.lower() == 'lupton' or normalize.lower() == 'luptonhc':
+        z = z*np.arcsinh(stretch*Q*(I - m))/(Q*I)
+        r = r*np.arcsinh(stretch*Q*(I - m))/(Q*I)
+        g = g*np.arcsinh(stretch*Q*(I - m))/(Q*I)
+        
+        #z = z*np.arcsinh(Q*(I - m)/stretch)/(Q)
+        #r = r*np.arcsinh(Q*(I - m)/stretch)/(Q)
+        #g = g*np.arcsinh(Q*(I - m)/stretch)/(Q)
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        if do_norm:
+            return norm(z,r,g)
+        else:
+            return image
+    
+    elif normalize.lower() == 'astrolupton':
+        image = make_lupton_rgb(z, r, g, minimum=m, stretch=stretch, Q=Q)
+        return image
+    
+    elif normalize.lower() == 'zscore':
+        Imean = np.nanmean(I)
+        Isigma = np.nanstd(I)
+
+        z = A*(z - Imean - m)/Isigma
+        r = A*(r - Imean - m)/Isigma
+        g = A*(g - Imean - m)/Isigma
+        
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        if do_norm:
+            return norm(z,r,g)
+        else:
+            return image
+        
+        
+    elif normalize.lower() == 'zscore_orig':
+        
+        zsigma = np.nanstd(z)
+        rsigma = np.nanstd(r)
+        gsigma = np.nanstd(g)
+        
+        z = A*(z - np.nanmean(z) - m)/zsigma
+        r = A*(r - np.nanmean(r) - m)/rsigma
+        g = A*(g - np.nanmean(g) - m)/gsigma
+
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        
+        return image
+        
+    elif normalize.lower() == 'sinh':
+        z = np.sinh((z-m))
+        r = np.sinh((r-m))
+        g = np.sinh((g-m))
+
+        
+    #sqrt(Q (I - minimum)/stretch)/Q
+    elif normalize.lower() == 'sqrt':
+        z = z*np.sqrt((I-m)*Q/stretch)/I/stretch
+        r = r*np.sqrt((I-m)*Q/stretch)/I/stretch
+        g = g*np.sqrt((I-m)*Q/stretch)/I/stretch
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        if do_norm:
+            return norm(z,r,g)
+        else:
+            return image
+        
+        
+    elif normalize.lower() == 'sqrt-old':
+        z = np.sqrt(z)
+        r = np.sqrt(r)
+        g = np.sqrt(g)
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        if do_norm:
+            return norm(z,r,g)
+        else:
+            return image
+    
+    
+    elif normalize.lower() == 'linear':
+        z = A*(z - m)
+        r = A*(r - m)
+        g = A*(g - m)
+        #z = (z - m)
+        #r = (r - m)
+        #g = (g - m)       
+        
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        return image
+        
+    elif normalize.lower() == 'normlinear':
+        #image = np.empty([length, width, 3], dtype=dtype)
+
+        z = A*(z - m)
+        r = A*(r - m)
+        g = A*(g - m)
+        #z = (z - m)
+        #r = (r - m)
+        #g = (g - m)       
+        
+        #image[:,:,0] = z # R
+        #image[:,:,1] = r # G
+        #image[:,:,2] = g # B
+        #return image
+    
+    
+    elif normalize.lower() == 'astroluptonhc':
+        image = make_lupton_rgb(z, r, g, minimum=m, stretch=stretch, Q=Q)
+        factor = 2 #gives original image
+        cenhancer = ImageEnhance.Contrast(Image.fromarray(image))
+        im_output = cenhancer.enhance(factor)
+        benhancer = ImageEnhance.Brightness(im_output)
+        image = benhancer.enhance(factor)
+        image = np.asarray(image)
+        return image
+
+    else:
+        print('Normalize keyword not recognized.')
 
 # ### Augment Data
 def gaussblur(image):
@@ -1224,10 +1394,14 @@ class train_mapper_cls:
 
     def __call__(self,dataset_dict):
         dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-    
-        #image = read_image(dataset_dict["file_name"], normalize=args.norm, ceil_percentile=99.99)
-        image = read_image(dataset_dict["file_name"], normalize = self.ria['normalize'],
-        ceil_percentile = self.ria['ceil_percentile'])
+        if self.ria['sim']:
+            image = read_image_decam(dataset_dict["file_name"], normalize = self.ria['normalize'],
+            ceil_percentile = self.ria['ceil_percentile'], dtype=self.ria['dtype'],
+            A=self.ria['A'],stretch=self.ria['stretch'],Q=self.ria['Q'],do_norm=self.ria['do_norm'])
+        else:
+            image = read_image_hsc(filenames, normalize = self.ria['normalize'],
+            ceil_percentile = self.ria['ceil_percentile'], dtype=self.ria['dtype'],
+            A=self.ria['A'],stretch=self.ria['stretch'],Q=self.ria['Q'],do_norm=self.ria['do_norm'])
         '''
         augs = T.AugmentationList([
             T.RandomRotation([-90, 90, 180], sample_style='choice'),
@@ -1275,8 +1449,14 @@ class test_mapper_cls:
 
     def __call__(self,dataset_dict):
         dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-        image = read_image(dataset_dict["file_name"], normalize = self.ria['normalize'],
-        ceil_percentile = self.ria['ceil_percentile'])
+        if self.ria['sim']:
+            image = read_image_decam(dataset_dict["file_name"], normalize = self.ria['normalize'],
+            ceil_percentile = self.ria['ceil_percentile'], dtype=self.ria['dtype'],
+            A=self.ria['A'],stretch=self.ria['stretch'],Q=self.ria['Q'],do_norm=self.ria['do_norm'])
+        else:
+            image = read_image_hsc(filenames, normalize = self.ria['normalize'],
+            ceil_percentile = self.ria['ceil_percentile'], dtype=self.ria['dtype'],
+            A=self.ria['A'],stretch=self.ria['stretch'],Q=self.ria['Q'],do_norm=self.ria['do_norm'])
         
         augs = T.AugmentationList([])
         
