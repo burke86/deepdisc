@@ -184,14 +184,17 @@ def main(dataset_names,train_head,args):
         cfgfile = '/home/g4merz/deblend/detectron2/projects/ViTDet/configs/COCO/cascade_mask_rcnn_swin_b_in21k_50ep.py'
         initwfile= '/home/g4merz/deblend/detectron2/projects/ViTDet/model_final_246a82.pkl'
     elif modname =='mvitv2':
-        cfgfile = '/home/g4merz/deblend/detectron2/projects/ViTDet/configs/COCO/cascade_mask_rcnn_mvitv2_b_in21k_100ep.py'
-        initwfile = '/home/g4merz/deblend/detectron2/projects/ViTDet/model_final_8c3da3.pkl'
+        cfgfile = '/home/yl127/detectron2/projects/ViTDet/configs/COCO/cascade_mask_rcnn_mvitv2_b_in21k_100ep.py'
+        initwfile = '/home/yl127/detectron2/projects/ViTDet/model_final_8c3da3.pkl'
 
     elif modname=='vitdet':
         cfgfile = '/home/g4merz/deblend/detectron2/projects/ViTDet/configs/COCO/mask_rcnn_vitdet_b_100ep.py'
         #initwfile = '/home/g4merz/deblend/detectron2/projects/ViTDet/model_final_435fa9.pkl'
         initwfile = '/home/g4merz/deblend/detectron2/projects/ViTDet/model_final_61ccd1.pkl'
-
+    elif modname == 'r101fpn':
+        cfgfile = '/home/yl127/detectron2/configs/new_baselines/mask_rcnn_R_101_FPN_100ep_LSJ.py'
+        initwfile = '/home/yl127/detectron2/configs/new_baselines/model_final_a3ec72.pkl'
+        
     # ### Prepare For Training
     # Training logic:
     # To replicate 2019 methodology, need to 
@@ -224,8 +227,8 @@ def main(dataset_names,train_head,args):
     cfg.model.roi_heads.num_classes=2
     cfg.model.roi_heads.batch_size_per_image=250
     
-    for box_predictor in cfg.model.roi_heads.box_predictors:
-        box_predictor.focal_loss_alphas=None
+    # for box_predictor in cfg.model.roi_heads.box_predictors:
+    # box_predictor.focal_loss_alphas=None
 
     cfg_loader = get_cfg()
     cfg_loader.SOLVER.IMS_PER_BATCH = 4
@@ -307,13 +310,13 @@ def main(dataset_names,train_head,args):
 
         trainer = LazyAstroTrainer(model, loader, optimizer, cfg, cfg_loader)
         trainer.register_hooks(hookList)
-        #trainer.set_period(int(epoch/2)) # print loss every n iterations
-        #trainer.train(0,e1)
-        trainer.set_period(10) # print loss every n iterations
-        trainer.train(0,100)
+        trainer.set_period(int(epoch/2)) # print loss every n iterations
+        trainer.train(0,e1)
+        # trainer.set_period(10) # print loss every n iterations
+        # trainer.train(0,100)
         if comm.is_main_process():
-            np.save(output_dir+output_name+'_losses',trainer.lossList)
-            np.save(output_dir+output_name+'_val_losses',trainer.vallossList)
+            np.save(os.path.join(output_dir, output_name+'_losses'),trainer.lossList)
+            np.save(os.path.join(output_dir, output_name+'_val_losses'),trainer.vallossList)
 
         return
         #return trainer.train(0, e1)
@@ -355,18 +358,18 @@ def main(dataset_names,train_head,args):
 
         trainer = LazyAstroTrainer(model, loader, optimizer, cfg, cfg_loader)
         trainer.register_hooks(hookList)
-        #trainer.set_period(epoch) # print loss every n iterations
-        #trainer.train(0,efinal)
-        trainer.set_period(10) # print loss every n iterations
-        trainer.train(0,100)
+        trainer.set_period(int(epoch/2)) # print loss every n iterations
+        trainer.train(0,efinal)
+        # trainer.set_period(10) # print loss every n iterations
+        # trainer.train(0, 100)
         if comm.is_main_process():
-            losses = np.load(output_dir+output_name+'_losses.npy')
-            losses= np.concatenate((losses,trainer.lossList))
-            np.save(output_dir+output_name+'_losses',losses)
+            losses = np.load(os.path.join(output_dir, output_name+'_losses.npy'))
+            losses = np.concatenate((losses,trainer.lossList))
+            np.save(os.path.join(output_dir, output_name+'_losses'),losses)
 
-            vallosses = np.load(output_dir+output_name+'_val_losses.npy')
-            vallosses= np.concatenate((vallosses,trainer.vallossList))
-            np.save(output_dir+output_name+'_val_losses',vallosses)
+            vallosses = np.load(os.path.join(output_dir, output_name+'_val_losses.npy'))
+            vallosses = np.concatenate((vallosses,trainer.vallossList))
+            np.save(os.path.join(output_dir, output_name+'_val_losses'),vallosses)
         return
 
 
