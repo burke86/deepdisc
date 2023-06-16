@@ -137,6 +137,8 @@ def main(dataset_names,train_head,args):
     efinal=epoch*35
 
     val_per = epoch
+
+    #cfg.MODEL.ROI_BOX_HEAD.USE_SIGMOID_CE= True
     
     if train_head:
 
@@ -155,7 +157,7 @@ def main(dataset_names,train_head,args):
         else:
             cfg.MODEL.WEIGHTS = os.path.join(output_dir, 'model_temp.pth')  # Initialize from a local weights
         
-
+        print(cfg)
 
         os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
         model = modeler.build_model(cfg)

@@ -381,7 +381,7 @@ class COCOeval_opt_custom(COCOeval_opt):
             p.catIds = list(np.unique(p.catIds))
         p.maxDets = sorted(p.maxDets)
         self.params=p
-
+        print(p.areaRng)
         self._prepare()
         # loop through images, area range, max detection number
         catIds = p.catIds if p.useCats else [-1]
@@ -393,7 +393,6 @@ class COCOeval_opt_custom(COCOeval_opt):
         self.ious = {(imgId, catId): computeIoU(imgId, catId) \
                         for imgId in p.imgIds
                         for catId in catIds}
-        #print(self.ious)
         evaluateImg = self.evaluateImg
         maxDet = p.maxDets[-1]
         self.evalImgs = [evaluateImg(imgId, catId, areaRng, maxDet)
@@ -520,8 +519,85 @@ class COCOeval_opt_custom(COCOeval_opt):
         print('DONE (t={:0.2f}s).'.format( toc-tic))
 
 
+    def summarize_custom(self):
+        '''
+        Compute and display summary metrics for evaluation results.
+        Note this functin can *only* be applied on the default parameter setting
+        '''
+        def _summarize( ap=1, iouThr=None, areaRng='all', maxDets=100 ):
+            p = self.params
+            iStr = ' {:<18} {} @[ IoU={:<9} | area={:>6s} | maxDets={:>3d} ] = {:0.3f}'
+            titleStr = 'Average Precision' if ap == 1 else 'Average Recall'
+            typeStr = '(AP)' if ap==1 else '(AR)'
+            iouStr = '{:0.2f}:{:0.2f}'.format(p.iouThrs[0], p.iouThrs[-1]) \
+                if iouThr is None else '{:0.2f}'.format(iouThr)
+
+            aind = [i for i, aRng in enumerate(p.areaRngLbl) if aRng == areaRng]
+            mind = [i for i, mDet in enumerate(p.maxDets) if mDet == maxDets]
+            if ap == 1:
+                # dimension of precision: [TxRxKxAxM]
+                s = self.eval['precision']
+                # IoU
+                if iouThr is not None:
+                    t = np.where(iouThr == p.iouThrs)[0]
+                    s = s[t]
+                s = s[:,:,:,aind,mind]
+            else:
+                # dimension of recall: [TxKxAxM]
+                s = self.eval['recall']
+                if iouThr is not None:
+                    t = np.where(iouThr == p.iouThrs)[0]
+                    s = s[t]
+                s = s[:,:,aind,mind]
+            if len(s[s>-1])==0:
+                mean_s = -1
+            else:
+                mean_s = np.mean(s[s>-1])
+            print(iStr.format(titleStr, typeStr, iouStr, areaRng, maxDets, mean_s))
+            return mean_s
+        def _summarizeDets():
+            stats = np.zeros((12,))
+            stats[0] = _summarize(1)
+            stats[1] = _summarize(1, iouThr=.5, maxDets=self.params.maxDets[2])
+            stats[2] = _summarize(1, iouThr=.75, maxDets=self.params.maxDets[2])
+            stats[3] = _summarize(1, areaRng='small', iouThr=0.5, maxDets=self.params.maxDets[2])
+            stats[4] = _summarize(1, areaRng='medium', iouThr=0.5, maxDets=self.params.maxDets[2])
+            stats[5] = _summarize(1, areaRng='large', iouThr=0.5, maxDets=self.params.maxDets[2])
+            stats[6] = _summarize(0, maxDets=self.params.maxDets[0])
+            stats[7] = _summarize(0, maxDets=self.params.maxDets[1])
+            stats[8] = _summarize(0, maxDets=self.params.maxDets[2])
+            stats[9] = _summarize(0, areaRng='small', maxDets=self.params.maxDets[2])
+            stats[10] = _summarize(0, areaRng='medium', maxDets=self.params.maxDets[2])
+            stats[11] = _summarize(0, areaRng='large', maxDets=self.params.maxDets[2])
+            return stats
+        def _summarizeKps():
+            stats = np.zeros((10,))
+            stats[0] = _summarize(1, maxDets=20)
+            stats[1] = _summarize(1, maxDets=20, iouThr=.5)
+            stats[2] = _summarize(1, maxDets=20, iouThr=.75)
+            stats[3] = _summarize(1, maxDets=20, areaRng='medium')
+            stats[4] = _summarize(1, maxDets=20, areaRng='large')
+            stats[5] = _summarize(0, maxDets=20)
+            stats[6] = _summarize(0, maxDets=20, iouThr=.5)
+            stats[7] = _summarize(0, maxDets=20, iouThr=.75)
+            stats[8] = _summarize(0, maxDets=20, areaRng='medium')
+            stats[9] = _summarize(0, maxDets=20, areaRng='large')
+            return stats
+        if not self.eval:
+            raise Exception('Please run accumulate() first')
+        iouType = self.params.iouType
+        if iouType == 'segm' or iouType == 'bbox':
+            summarize = _summarizeDets
+        elif iouType == 'keypoints':
+            summarize = _summarizeKps
+        self.stats = summarize()
+
+
+
+
 def _evaluate_predictions_on_coco(
-        coco_gt, coco_results, iou_type, kpt_oks_sigmas=None, use_fast_impl=True, img_ids=None, max_dets_per_image=None
+        coco_gt, coco_results, iou_type, kpt_oks_sigmas=None, use_fast_impl=True, img_ids=None, max_dets_per_image=None, 
+        areaRng=None
     ):
     
         #Evaluate the coco results using COCOEval API.
@@ -562,11 +638,14 @@ def _evaluate_predictions_on_coco(
                 "They have to agree with each other. For meaning of OKS, please refer to "
                 "http://cocodataset.org/#keypoints-eval."
             )
-        print(max_dets_per_image)
+        
         coco_eval.params.maxDets = max_dets_per_image # by default it is [1,10,100], our datasets have more than 100 instances
+        coco_eval.params.areaRng=areaRng
         coco_eval.evaluate_custom()
         coco_eval.accumulate_custom()
-        coco_eval.summarize()
+        coco_eval.summarize_custom()
+        #coco_eval.summarize()
+
         return coco_eval
     
 
@@ -775,6 +854,7 @@ class COCOEvaluatorRecall(COCOEvaluator):
         output_dir=None,
         *,
         max_dets_per_image=None,
+        areaRng=None,
         use_fast_impl=True,
         kpt_oks_sigmas=(),
         allow_cached_coco=True,
@@ -835,6 +915,10 @@ class COCOEvaluatorRecall(COCOEvaluator):
             max_dets_per_image = [1, 10, max_dets_per_image]
         self._max_dets_per_image = max_dets_per_image
 
+        if areaRng is None:
+            areaRng=[[0, 10000000000.0], [0, 1024], [1024, 9216], [9216, 10000000000.0]]  
+        self._areaRng = areaRng
+        
         if tasks is not None and isinstance(tasks, CfgNode):
             kpt_oks_sigmas = (
                 tasks.TEST.KEYPOINT_OKS_SIGMAS if not kpt_oks_sigmas else kpt_oks_sigmas
@@ -929,7 +1013,8 @@ class COCOEvaluatorRecall(COCOEvaluator):
                     kpt_oks_sigmas = None,
                     use_fast_impl=self._use_fast_impl,
                     img_ids=img_ids,
-                    max_dets_per_image=self._max_dets_per_image
+                    max_dets_per_image=self._max_dets_per_image,
+                    areaRng=self._areaRng
                 )
                 if len(coco_results) > 0
                 else None  # cocoapi does not handle empty results very well
@@ -1023,7 +1108,7 @@ class COCOEvaluatorRecall(COCOEvaluator):
 
 
 
-def read_image(filenames, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8, A=1e4, do_norm=True):
+def read_image_hsc(filenames, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8, A=1e4, do_norm=False):
     def norm(z,r,g):
         max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
         print(max_RGB)
@@ -1055,7 +1140,6 @@ def read_image(filenames, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_perce
     
     
     # Read image
-    
     g = fits.getdata(os.path.join(filenames[0]), memmap=False)
     r = fits.getdata(os.path.join(filenames[1]), memmap=False)
     z = fits.getdata(os.path.join(filenames[2]), memmap=False)
@@ -1197,7 +1281,178 @@ def read_image(filenames, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_perce
     else:
         print('Normalize keyword not recognized.')
 
+def read_image_decam(filename, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8, A=1e4, do_norm=False):
+    def norm(z,r,g):
+        max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
+        print(max_RGB)
 
+        max_z=np.nanpercentile([z], ceil_percentile)
+        max_r=np.nanpercentile([r], ceil_percentile)
+        max_g=np.nanpercentile([g], ceil_percentile)
+
+        #z = np.clip(z,None,max_RGB)
+        #r = np.clip(r,None,max_RGB)
+        #g = np.clip(g,None,max_RGB)
+
+        # avoid saturation
+        r = r/max_RGB; g = g/max_RGB; z = z/max_RGB
+        #r = r/max_r; g = g/max_g; z = z/max_z
+
+        # Rescale to 0-255 for dtype=np.uint8
+        max_dtype = np.iinfo(dtype).max
+        r = r*max_dtype
+        g = g*max_dtype
+        z = z*max_dtype
+
+        # 0-255 RGB image
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+
+        return image
+    
+    
+    # Read image
+    g = fits.getdata(os.path.join(filename+'_g.fits'), memmap=False)
+    r = fits.getdata(os.path.join(filename+'_r.fits'), memmap=False)
+    z = fits.getdata(os.path.join(filename+'_z.fits'), memmap=False)
+    
+    # Contrast scaling / normalization
+    I = (z + r + g)/3.0
+    
+    length, width = g.shape
+    image = np.empty([length, width, 3], dtype=dtype)
+    
+    #asinh(Q (I - minimum)/stretch)/Q
+    
+    # Options for contrast scaling
+    if normalize.lower() == 'lupton' or normalize.lower() == 'luptonhc':
+        z = z*np.arcsinh(stretch*Q*(I - m))/(Q*I)
+        r = r*np.arcsinh(stretch*Q*(I - m))/(Q*I)
+        g = g*np.arcsinh(stretch*Q*(I - m))/(Q*I)
+        
+        #z = z*np.arcsinh(Q*(I - m)/stretch)/(Q)
+        #r = r*np.arcsinh(Q*(I - m)/stretch)/(Q)
+        #g = g*np.arcsinh(Q*(I - m)/stretch)/(Q)
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        if do_norm:
+            return norm(z,r,g)
+        else:
+            return image
+    
+    elif normalize.lower() == 'astrolupton':
+        image = make_lupton_rgb(z, r, g, minimum=m, stretch=stretch, Q=Q)
+        return image
+    
+    elif normalize.lower() == 'zscore':
+        Imean = np.nanmean(I)
+        Isigma = np.nanstd(I)
+
+        z = A*(z - Imean - m)/Isigma
+        r = A*(r - Imean - m)/Isigma
+        g = A*(g - Imean - m)/Isigma
+        
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        if do_norm:
+            return norm(z,r,g)
+        else:
+            return image
+        
+        
+    elif normalize.lower() == 'zscore_orig':
+        
+        zsigma = np.nanstd(z)
+        rsigma = np.nanstd(r)
+        gsigma = np.nanstd(g)
+        
+        z = A*(z - np.nanmean(z) - m)/zsigma
+        r = A*(r - np.nanmean(r) - m)/rsigma
+        g = A*(g - np.nanmean(g) - m)/gsigma
+
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        
+        return image
+        
+    elif normalize.lower() == 'sinh':
+        z = np.sinh((z-m))
+        r = np.sinh((r-m))
+        g = np.sinh((g-m))
+
+        
+    #sqrt(Q (I - minimum)/stretch)/Q
+    elif normalize.lower() == 'sqrt':
+        z = z*np.sqrt((I-m)*Q/stretch)/I/stretch
+        r = r*np.sqrt((I-m)*Q/stretch)/I/stretch
+        g = g*np.sqrt((I-m)*Q/stretch)/I/stretch
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        if do_norm:
+            return norm(z,r,g)
+        else:
+            return image
+        
+        
+    elif normalize.lower() == 'sqrt-old':
+        z = np.sqrt(z)
+        r = np.sqrt(r)
+        g = np.sqrt(g)
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        if do_norm:
+            return norm(z,r,g)
+        else:
+            return image
+    
+    
+    elif normalize.lower() == 'linear':
+        z = A*(z - m)
+        r = A*(r - m)
+        g = A*(g - m)
+        #z = (z - m)
+        #r = (r - m)
+        #g = (g - m)       
+        
+        image[:,:,0] = z # R
+        image[:,:,1] = r # G
+        image[:,:,2] = g # B
+        return image
+        
+    elif normalize.lower() == 'normlinear':
+        #image = np.empty([length, width, 3], dtype=dtype)
+
+        z = A*(z - m)
+        r = A*(r - m)
+        g = A*(g - m)
+        #z = (z - m)
+        #r = (r - m)
+        #g = (g - m)       
+        
+        #image[:,:,0] = z # R
+        #image[:,:,1] = r # G
+        #image[:,:,2] = g # B
+        #return image
+    
+    
+    elif normalize.lower() == 'astroluptonhc':
+        image = make_lupton_rgb(z, r, g, minimum=m, stretch=stretch, Q=Q)
+        factor = 2 #gives original image
+        cenhancer = ImageEnhance.Contrast(Image.fromarray(image))
+        im_output = cenhancer.enhance(factor)
+        benhancer = ImageEnhance.Brightness(im_output)
+        image = benhancer.enhance(factor)
+        image = np.asarray(image)
+        return image
+
+    else:
+        print('Normalize keyword not recognized.')
 
 # ### Augment Data
 def gaussblur(image):
@@ -1224,10 +1479,14 @@ class train_mapper_cls:
 
     def __call__(self,dataset_dict):
         dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-    
-        #image = read_image(dataset_dict["file_name"], normalize=args.norm, ceil_percentile=99.99)
-        image = read_image(dataset_dict["file_name"], normalize = self.ria['normalize'],
-        ceil_percentile = self.ria['ceil_percentile'])
+        if self.ria['sim']:
+            image = read_image_decam(dataset_dict["file_name"], normalize = self.ria['normalize'],
+            ceil_percentile = self.ria['ceil_percentile'], dtype=self.ria['dtype'],
+            A=self.ria['A'],stretch=self.ria['stretch'],Q=self.ria['Q'],do_norm=self.ria['do_norm'])
+        else:
+            image = read_image_hsc(filenames, normalize = self.ria['normalize'],
+            ceil_percentile = self.ria['ceil_percentile'], dtype=self.ria['dtype'],
+            A=self.ria['A'],stretch=self.ria['stretch'],Q=self.ria['Q'],do_norm=self.ria['do_norm'])
         '''
         augs = T.AugmentationList([
             T.RandomRotation([-90, 90, 180], sample_style='choice'),
@@ -1275,8 +1534,14 @@ class test_mapper_cls:
 
     def __call__(self,dataset_dict):
         dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-        image = read_image(dataset_dict["file_name"], normalize = self.ria['normalize'],
-        ceil_percentile = self.ria['ceil_percentile'])
+        if self.ria['sim']:
+            image = read_image_decam(dataset_dict["file_name"], normalize = self.ria['normalize'],
+            ceil_percentile = self.ria['ceil_percentile'], dtype=self.ria['dtype'],
+            A=self.ria['A'],stretch=self.ria['stretch'],Q=self.ria['Q'],do_norm=self.ria['do_norm'])
+        else:
+            image = read_image_hsc(filenames, normalize = self.ria['normalize'],
+            ceil_percentile = self.ria['ceil_percentile'], dtype=self.ria['dtype'],
+            A=self.ria['A'],stretch=self.ria['stretch'],Q=self.ria['Q'],do_norm=self.ria['do_norm'])
         
         augs = T.AugmentationList([])
         
