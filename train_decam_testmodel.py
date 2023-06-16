@@ -308,9 +308,9 @@ def main(dataset_names,train_head,args):
         trainer = LazyAstroTrainer(model, loader, optimizer, cfg, cfg_loader)
         trainer.register_hooks(hookList)
         #trainer.set_period(int(epoch/2)) # print loss every n iterations
-        #trainer.train(0,e1)
-        trainer.set_period(10) # print loss every n iterations
-        trainer.train(0,100)
+        trainer.train(0,e1)
+        #trainer.set_period(10) # print loss every n iterations
+        #trainer.train(0,100)
         if comm.is_main_process():
             np.save(output_dir+output_name+'_losses',trainer.lossList)
             np.save(output_dir+output_name+'_val_losses',trainer.vallossList)
@@ -355,10 +355,10 @@ def main(dataset_names,train_head,args):
 
         trainer = LazyAstroTrainer(model, loader, optimizer, cfg, cfg_loader)
         trainer.register_hooks(hookList)
-        #trainer.set_period(epoch) # print loss every n iterations
-        #trainer.train(0,efinal)
-        trainer.set_period(10) # print loss every n iterations
-        trainer.train(0,100)
+        trainer.set_period(epoch) # print loss every n iterations
+        trainer.train(0,efinal)
+        #trainer.set_period(10) # print loss every n iterations
+        #trainer.train(0,100)
         if comm.is_main_process():
             losses = np.load(output_dir+output_name+'_losses.npy')
             losses= np.concatenate((losses,trainer.lossList))
