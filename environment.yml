@@ -3,6 +3,7 @@ channels:
   - https://public.dhe.ibm.com/ibmdl/export/pub/software/server/ibm-ai/conda
   - https://ftp.osuosl.org/pub/open-ce/1.5.1
   - conda-forge
+  - https://ftp.osuosl.org/pub/open-ce/1.8.0/
   - defaults
 dependencies:
   - _libgcc_mutex=0.1=conda_forge
