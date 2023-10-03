@@ -19,7 +19,7 @@ from astropy.visualization.lupton_rgb import LinearMapping, AsinhMapping
 
 
 def write_scarlet_results(datas, observation, starlet_sources, model_frame, catalog_deblended,
-                          segmentation_masks, dirpath, filters, s): 
+                          source_catalog, segmentation_masks, dirpath, filters, s): 
     """
     Saves images in each channel, with headers for each source in image,
     such that the number of headers = number of sources detected in image.
@@ -53,7 +53,7 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         Saved image and model files for each filter, and one total segmentation mask file for all filters.
     """
     
-    def _make_hdr(starlet_source, cat):
+    def _make_hdr(starlet_source, cat, source_cat):
         """
         Helper function to make FITS header and insert metadata.
         Parameters
@@ -74,17 +74,26 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         bbox_w = starlet_source.bbox.shape[2]
         bbox_y = starlet_source.bbox.origin[1] + int(np.floor(bbox_w/2)) # y-coord of the source's center
         bbox_x = starlet_source.bbox.origin[2] + int(np.floor(bbox_w/2)) # x-coord of the source's center
-        
+        catalog_redshift = source_cat['redshift_truth']
+        oid = source_cat['objectId']
+        imag = source_cat['mag_i']
+        if not np.isfinite(imag):
+            imag=-1
+
         # Ellipse parameters (a, b, theta) from deblend catalog
-        e_a, e_b, e_theta = cat['a'], cat['b'], cat['theta']
-        ell_parm = np.concatenate((cat['a'], cat['b'], cat['theta']))
+        #e_a, e_b, e_theta = cat['a'], cat['b'], cat['theta']
+        #ell_parm = np.concatenate((cat['a'], cat['b'], cat['theta']))
 
         # Add info to header
         model_hdr = fits.Header()
         model_hdr['bbox'] = ','.join(map(str, [bbox_x, bbox_y, bbox_w, bbox_h]))
         model_hdr['area'] = bbox_w * bbox_h
-        model_hdr['ell_parm'] = ','.join(map(str, list(ell_parm)))
+        #model_hdr['ell_parm'] = ','.join(map(str, list(ell_parm)))
         model_hdr['cat_id'] = 1 # Category ID #TODO: set categor_id based on if the source is extended or not
+        model_hdr['cat_z'] = catalog_redshift
+        model_hdr['objid'] = oid
+        model_hdr['mag_i'] = imag
+
         
         return model_hdr
 
@@ -94,7 +103,7 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
     filenames = {}
     
     # Filter loop
-    for i, f in enumerate(filters): # datas is HSC data array with dimensions [filters, N, N]
+    for i, f in enumerate([filters[3]]): # datas is HSC data array with dimensions [filters, N, N]
         f = f.upper()
 
         # Primary HDU is full image
@@ -103,12 +112,13 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         # Create header entry for each scarlet source
         for k, (src, cat) in enumerate(zip(starlet_sources, catalog_deblended)):
 
+            source_cat = source_catalog.iloc[k]
             # Get each model, make into image
             model = starlet_sources[k].get_model(frame=model_frame)
             model = observation.render(model)
             model = src.bbox.extract_from(model)
 
-            model_hdr = _make_hdr(starlet_sources[k], cat)
+            model_hdr = _make_hdr(starlet_sources[k], cat, source_cat)
             
             model_hdu = fits.ImageHDU(data=model[i], header=model_hdr)
             model_primary = fits.PrimaryHDU()
@@ -141,8 +151,10 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         for i, f in enumerate(filters[0]):
             # Create header entry for each scarlet source
             for k, (src, cat) in enumerate(zip(starlet_sources, catalog_deblended)):
+                
+                source_cat = source_catalog.iloc[k]
 
-                segmask_hdr = _make_hdr(starlet_sources[k], cat)
+                segmask_hdr = _make_hdr(starlet_sources[k], cat, source_cat)
 
                 # Save each model source k in the image
                 segmask_hdu = fits.ImageHDU(data=segmentation_masks[k], header=segmask_hdr)
@@ -404,7 +416,7 @@ def _plot_wavelet(datas):
     return
 
 
-def _plot_scene(starlet_sources, observation, norm, catalog, show_model=True, show_rendered=True,
+def _plot_scene(starlet_sources, observation, norm, catalog, source_catalog, show_model=True, show_rendered=True,
                show_observed=True, show_residual=True, add_labels=True, add_boxes=True,
                add_ellipses=True,savefigs=False,figpath=''):
 
@@ -453,6 +465,8 @@ def _plot_scene(starlet_sources, observation, norm, catalog, show_model=True, sh
 
         # Plot sep ellipse around all sources from the detection catalog
         if add_ellipses == True:
+    
+            '''
             for k, src in enumerate(catalog):
                 # See https://sextractor.readthedocs.io/en/latest/Position.html
                 e = Ellipse(xy=(src['x'], src['y']),
@@ -464,7 +478,21 @@ def _plot_scene(starlet_sources, observation, norm, catalog, show_model=True, sh
                 e.set_edgecolor('white')
 
                 ax.add_artist(e)
+            '''
             
+            for i in range(len(source_catalog)):
+                obj = source_catalog.iloc[i]
+                # See https://sextractor.readthedocs.io/en/latest/Position.html
+                e = Ellipse(xy=(obj['new_x'], obj['new_y']),
+                            width=10,
+                            height=10,
+                            angle=0)
+
+                e.set_facecolor('none')
+                e.set_edgecolor('white')
+
+                ax.add_artist(e)
+
         ax.axis('off')
 
     fig.subplots_adjust(wspace=0.01)
@@ -477,7 +505,7 @@ def _plot_scene(starlet_sources, observation, norm, catalog, show_model=True, sh
     return fig
 
 
-def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
+def run_scarlet(datas, filters, source_catalog, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
                 psf=None, subtract_background=False, max_chi2=5000, max_iters=15, morph_thresh=0.1,
                 starlet_thresh=0.1, lvl=5, lvl_segmask=2, maskthresh=0.025,
                 segmentation_map=True, plot_wavelet=False, plot_likelihood=True,
@@ -523,7 +551,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
 
     # Generate source catalog using wavelets
     t0 = time.time()
-    catalog, bg_rms_hsc = make_catalog(datas, lvl, wave=True)
+    catalog, bg_rms_hsc = make_catalog(datas, lvl, wave=False)
     print(time.time()-t0)
     # If image is already background subtracted, weights are set to 1
     if subtract_background:
@@ -533,8 +561,9 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     
     
     
-    print("Source catalog found ", len(catalog), "objects")
-    
+    print("Sep found ", len(catalog), "objects")
+    print("Source catalog has ", len(source_catalog), "objects")
+
     # Plot wavelet transform at different scales
     if plot_wavelet == True:
         _plot_wavelet(datas)
@@ -543,8 +572,8 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     model_psf = scarlet.GaussianPSF(sigma=sigma_model) #, boxsize=100)
     model_frame = scarlet.Frame(datas.shape, psf=model_psf, channels=filters)
 
-    #observation_psf = scarlet.GaussianPSF(sigma=sigma_obs)
     observation_psf = scarlet.ImagePSF(psf)
+    #observation_psf = scarlet.GaussianPSF(sigma=sigma_obs)
     observation = scarlet.Observation(datas, psf=observation_psf, weights=weights, channels=filters).match(model_frame)        
           
     # Initialize starlet sources to be fit. Assume extended sources for all because 
@@ -557,12 +586,36 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
     # Compute radii and spread of sources
     Rs = np.sqrt(catalog['a']**2 + catalog['b']**2)
     spread = Rs/sigma_obs
-    
     # Array of chi^2 residuals computed after fit on each model
-    chi2s = np.zeros(len(catalog))
+    #chi2s = np.zeros(len(catalog))
+    chi2s = np.zeros(len(source_catalog))
     t0 = time.time()
     # Loop through detections in catalog
-    starlet_sources = []
+    
+    centers =[(source_catalog.iloc[i]['new_y'], source_catalog.iloc[i]['new_x']) for i in range(len(source_catalog))]
+    starlet_sources,skipped = scarlet.initialization.init_all_sources(model_frame,
+                                                           centers,
+                                                           observation,
+                                                           max_components=2,
+                                                           #min_snr=0.0001,
+                                                           thresh=morph_thresh,
+                                                           fallback=True,
+                                                           silent=True,
+                                                           set_spectra=False
+                                                          )
+    
+    
+    
+    #starlet_sources = []
+    
+    #for i in range(len(source_catalog)):
+    #    obj = source_catalog.iloc[i]
+    #    
+    #    new_source = scarlet.ExtendedSource(model_frame, (obj['new_y'], obj['new_x']), observation,
+    #                                        K=1, thresh=morph_thresh, compact=obj['extendedness'])
+    #    starlet_sources.append(new_source)
+        
+    '''
     for k, src in enumerate(catalog):
 
         # Is the source compact relative to the PSF?
@@ -575,16 +628,16 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         new_source = scarlet.ExtendedSource(model_frame, (src['y'], src['x']), observation,
                                             K=1, thresh=morph_thresh, compact=compact)
 
+        
         starlet_sources.append(new_source)
-            
+    '''
     # Fit scarlet blend
     starlet_blend, logL = fit_scarlet_blend(starlet_sources, observation, catalog,max_iters=max_iters, 
                                             plot_likelihood=plot_likelihood,savefigs=savefigs,figpath=figpath)
     print(time.time()-t0)
-
+    
+    #print("Computing residuals.")
     '''
-    print("Computing residuals.")
-
     # Compute reduced chi^2 for each rendered sources
     for k, src in enumerate(starlet_sources):
 
@@ -598,7 +651,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         # Replace models with poor fits with StarletSource models
         if chi2s[k] > max_chi2:
             starlet_sources[k] = scarlet.StarletSource(model_frame,
-                                                       (catalog["y"][k], catalog["x"][k]), observation,
+                                                       (source_catalog.iloc[k]["new_y"], source_catalog.iloc[k]["new_x"]), observation,
                                                        thresh=morph_thresh, starlet_thresh=starlet_thresh
                                                        )
 
@@ -609,9 +662,11 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         
         starlet_blend, logL = fit_scarlet_blend(starlet_sources, observation, catalog, max_iters=max_iters, 
                                                 plot_likelihood=plot_likelihood,savefigs=savefigs,figpath=figpath)
+    '''
+    
+    
+    
 
-        
-    '''    
     # Extract the deblended catalog and update the chi2 residuals
     print('Extracting deblended catalog.')
     
@@ -624,9 +679,7 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         model = observation.render(model)
         # Compute in bbox only
         model = src.bbox.extract_from(model)
-        
         bkgmod = sep.Background(np.sum(model,axis=0))
-
         
         # Run sep
         try:
@@ -650,15 +703,14 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
         # Append to full catalog
         if segmentation_map == True:
             # For some reason sep doesn't like these images, so do the segmask ourselves for now
-            #model_det = np.array(model[0,:,:])
             model_det = np.sum(model,axis=0)
             mask = np.zeros_like(model_det)
-            #mask[model_det>lvl_segmask*bg_rms_hsc[0]] = 1
             mask[model_det>lvl_segmask*bkgmod.globalrms] = 1
             segmentation_masks.append(mask)
             #plt.imshow(mask)
             #plt.show()
         catalog_deblended.append(cat)
+
         
         '''
         try:
@@ -680,17 +732,17 @@ def run_scarlet(datas, filters, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
 
         segmentation_masks.append(mask)
         catalog_deblended.append(catalog)
-        '''
+    '''
 
         
         
         
     # Combine catalog named array
-    catalog_deblended = np.vstack(catalog_deblended)
+    #catalog_deblended = np.vstack(catalog_deblended)
     
     # Plot scene: rendered model, observations, and residuals
     if plot_scene == True:
-        _plot_scene(starlet_sources, observation, norm, catalog, show_model=False, show_rendered=True,
+        _plot_scene(starlet_sources, observation, norm, catalog, source_catalog, show_model=False, show_rendered=True,
                    show_observed=True, show_residual=True, add_labels=add_labels, add_boxes=add_boxes,
                     add_ellipses=add_ellipses,savefigs=savefigs,figpath=figpath)
 
