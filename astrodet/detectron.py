@@ -43,14 +43,27 @@ from detectron2.utils.events import EventStorage, get_event_storage
 from detectron2.engine.hooks import LRScheduler
 from fvcore.common.param_scheduler import ParamScheduler
 import torch
+from torch import nn
+from torch.nn import functional as F
+
+from typing import Dict, List, Optional, Tuple
+from detectron2.structures import Boxes, ImageList, Instances, pairwise_iou
+from detectron2.layers import Conv2d, ShapeSpec, get_norm, cat, nonzero_tuple
+from detectron2.modeling import ROI_HEADS_REGISTRY
+from detectron2.modeling.roi_heads import StandardROIHeads
+from detectron2.modeling.poolers import ROIPooler
+from detectron2.modeling.roi_heads import CascadeROIHeads
+from detectron2.modeling.matcher import Matcher
+
+from torch.distributions.independent import Independent
+from torch.distributions.mixture_same_family import MixtureSameFamily
+from torch.distributions.beta import Beta
+from torch.distributions.categorical import Categorical
+from torch.distributions.normal import Normal
 
 
-# if your dataset is in COCO format, this cell can be replaced by the following three lines:
-# from detectron2.data.datasets import register_coco_instances
-# register_coco_instances("my_dataset_train", {}, "json_annotation_train.json", "path/to/image/dir")
-# register_coco_instances("my_dataset_val", {}, "json_annotation_val.json", "path/to/image/dir")
 
-#Yufeng Dec 21 add astro_metadata into parameters
+
 def plot_stretch_Q(dataset_dicts, astro_metadata, num=0, stretches=[0.01,0.1,0.5,1], Qs=[1,10,5,100], ceil_percentile=99.5):
     """
     Plots different normalizations of your image using the stretch, Q parameters. 
@@ -96,6 +109,12 @@ def plot_stretch_Q(dataset_dicts, astro_metadata, num=0, stretches=[0.01,0.1,0.5
     
 """Note:SaveHook is in charge of saving the trained model"""
 class SaveHook(HookBase):
+
+    '''
+    This Hook saves the model after training
+
+    '''
+
     output_name = "model_temp"
     def set_output_name(self, name):
         self.output_name = name
@@ -104,8 +123,22 @@ class SaveHook(HookBase):
         self.trainer.checkpointer.save(self.output_name) # Note: Set the name of the output model here
         
 
-#Validation loss code adopted from https://gist.github.com/ortegatron/c0dad15e49c2b74de8bb09a5615d9f6b
+#
 class LossEvalHook(HookBase):
+
+    '''
+    Validation loss code adopted from https://gist.github.com/ortegatron/c0dad15e49c2b74de8bb09a5615d9f6b
+    
+    Parameters
+    ----------
+    eval_period: int
+        How many iterations to run before validation loss is calculated
+    model: torch.NN.module
+        The model being trained
+    data_loader: detectron2 DataLoader
+        The dataloader that loads in the evaluation dataset 
+    '''
+
     def __init__(self, eval_period, model, data_loader):
         self._model = model
         self._period = eval_period
@@ -173,6 +206,14 @@ class CustomLRScheduler(HookBase):
     """
     A hook which executes a torch builtin LR scheduler and summarizes the LR.
     It is executed after every iteration.
+
+    Parameters
+    ----------
+    optimizer: torch optimizer
+        the training optimizer
+    scheduler: torch scheduler
+        The learning rate scheduler
+
     """
 
     def __init__(self, optimizer=None, scheduler=None):
@@ -246,9 +287,10 @@ class CustomLRScheduler(HookBase):
             self.scheduler.load_state_dict(state_dict)
             
 
-#Code taken from Deshwal on Stack Overflow
+
 class GenericWrapperTransform(Transform):
     """
+    Code from Deshwal on Stack Overflow
     Generic wrapper for any transform (for color transform only. You can give functionality to apply_coods, apply_segmentation too)
     """
 
@@ -384,11 +426,329 @@ class _TransformToAug(Augmentation):
 def _transform_to_aug(tfm_or_aug):
     """
     Wrap Transform into Augmentation.
-    Private, used internally to implement augmentations.
+    Private, used internally to implement custom augmentations.
     """
     assert isinstance(tfm_or_aug, (Transform, Augmentation)), tfm_or_aug
     if isinstance(tfm_or_aug, Augmentation):
         return tfm_or_aug
     else:
         return _TransformToAug(tfm_or_aug)
+
+
+#@ROI_HEADS_REGISTRY.register()
+class RedshiftCasROIHeads(CascadeROIHeads):
+    #def __init__(self, cfg, input_shape):      
+    def __init__(
+        self,
+        *,
+        box_in_features: List[str],
+        box_pooler: ROIPooler,
+        box_heads: List[nn.Module],
+        box_predictors: List[nn.Module],
+        proposal_matchers: List[Matcher],
+        **kwargs,
+    ):        
+        
+        
+        super().__init__(
+            box_in_features=box_in_features,
+            box_pooler=box_pooler,
+            box_heads=box_heads,
+            box_predictors=box_predictors,
+            proposal_matchers= proposal_matchers,
+            **kwargs,
+        )
+        
+     
+        #super().__init__(cfg, input_shape, **kwargs)
+        
+        self.redshift_pooler= ROIPooler(
+            output_size=7,
+            scales=tuple(k for k in [0.25, 0.125, 0.0625, 0.03125]),
+            sampling_ratio=0,
+            pooler_type='ROIAlignV2',
+        )
+        #in_channels = [input_shape[f].channels for f in in_features]
+        #in_channels = in_channels[0]
+        in_channels=256
+        inshape = ShapeSpec(channels=in_channels, height=7, width=7)
+        
+        #The input dim should follow from the classification head
+        self._output_size = (inshape.channels, inshape.height, inshape.width)
+        
+        #self.redshift_fc = nn.Linear(int(np.prod(self._output_size)), 1)
+        
+        self.redshift_fc=nn.Sequential(
+          nn.Linear(int(np.prod(self._output_size)), 1024),
+          #nn.BatchNorm1d(1024),
+          nn.ReLU(),
+          nn.Linear(1024, 64),
+          #nn.BatchNorm1d(64),
+          nn.ReLU(),
+          nn.Linear(64,16),
+          nn.ReLU(),
+          nn.Linear(16,1)
+        )
+        
+        #for l in self.redshift_fc:
+        #    if type(l) == nn.Linear:
+        #        #nn.init.constant_(l.bias, 0.1)    
+        #        nn.init.normal_(l.weight,std=0.01)
+
+        
+    def _forward_redshift(self, features, instances):
+
+        
+        if self.redshift_pooler is not None:
+            features = [features[f] for f in self.box_in_features]
+            boxes = [x.proposal_boxes if self.training else x.pred_boxes for x in instances]
+            features = self.redshift_pooler(features, boxes)
+        
+        features = nn.Flatten()(features)
+        
+        prediction = self.redshift_fc(features)[:,0]
+        #prediction = self.redshift_fc(features)
+
+        num_instances_per_img = [len(i) for i in instances]
+        
+        if self.training:
+            gt_classes = cat([x.gt_classes for x in instances])
+            #print('gt_classes')
+            #print(gt_classes)
+            #print('fg_inds')
+            fg_inds = nonzero_tuple((gt_classes >= 0) & (gt_classes < self.num_classes))[0]          
+            
+            gt_redshifts = cat([x.gt_redshift for x in instances])
+
+            diff = prediction[fg_inds] - gt_redshifts[fg_inds]
+            #$diff = prediction - gt_redshifts
+
+            return{"redshift_loss": torch.square(diff).mean()}
+            #return{"redshift_loss": torch.abs(diff).median()}
+        else:  
+            z_pred = torch.split(prediction, num_instances_per_img, dim=0)
+            for z, pred_instances in zip(z_pred, instances):
+                pred_instances.pred_redshift = z
+            return instances
+
+                           
+    def forward(self, images, features, proposals, targets=None):
+        del images
+        if self.training:
+            proposals = self.label_and_sample_proposals(proposals, targets)
+
+        if self.training:
+            # Need targets to box head
+            losses = self._forward_box(features, proposals, targets)
+            losses.update(self._forward_mask(features, proposals))
+            losses.update(self._forward_redshift(features, proposals))
+            losses.update(self._forward_keypoint(features, proposals))
+            return proposals, losses
+        else:
+            pred_instances = self._forward_box(features, proposals)
+            pred_instances = self.forward_with_given_boxes(features, pred_instances)
+            pred_instances = self._forward_redshift(features, pred_instances)
+            return pred_instances, {}
+
+
+
+#@ROI_HEADS_REGISTRY.register()
+class RedshiftPDFCasROIHeads(CascadeROIHeads):
+    #def __init__(self, cfg, input_shape):      
+    def __init__(
+        self,
+        num_components: int,
+        *,
+        box_in_features: List[str],
+        box_pooler: ROIPooler,
+        box_heads: List[nn.Module],
+        box_predictors: List[nn.Module],
+        proposal_matchers: List[Matcher],
+        **kwargs,
+    ):        
+        
+        
+        super().__init__(
+            box_in_features=box_in_features,
+            box_pooler=box_pooler,
+            box_heads=box_heads,
+            box_predictors=box_predictors,
+            proposal_matchers= proposal_matchers,
+            **kwargs,
+        )
+        
+     
+        
+        self.redshift_pooler= ROIPooler(
+            output_size=7,
+            scales=tuple(k for k in [0.25, 0.125, 0.0625, 0.03125]),
+            sampling_ratio=0,
+            pooler_type='ROIAlignV2',
+        )
+        
+
+        in_channels=256
+        inshape = ShapeSpec(channels=in_channels, height=7, width=7)
+        
+        self._output_size = (inshape.channels, inshape.height, inshape.width)
+        self.num_components = num_components
+        
+        self.redshift_fc=nn.Sequential(
+          nn.Linear(int(np.prod(self._output_size)), 1024),
+          nn.Tanh(),
+          nn.Linear(1024, 64),
+          nn.Tanh(),
+          nn.Linear(64,self.num_components*3),
+        )
+        
+   
+    def output_pdf(self,inputs):
+        pdf = Independent(
+         MixtureSameFamily(
+            mixture_distribution=Categorical(logits=inputs[...,:self.num_components]),
+            component_distribution=Normal(inputs[...,self.num_components:2*self.num_components],
+                F.softplus(inputs[...,2*self.num_components:]))), 0)
+        return pdf 
+        
+    def _forward_redshift(self, features, instances):
+
+        
+        if self.redshift_pooler is not None:
+            features = [features[f] for f in self.box_in_features]
+            boxes = [x.proposal_boxes if self.training else x.pred_boxes for x in instances]
+            features = self.redshift_pooler(features, boxes)
+        
+        features = nn.Flatten()(features)
+        
+        fcs = self.redshift_fc(features)
+
+        pdfs = self.output_pdf(fcs)
+
+        num_instances_per_img = [len(i) for i in instances]
+
+        if self.training:
+            gt_classes = cat([x.gt_classes for x in instances])
+            fg_inds = nonzero_tuple((gt_classes >= 0) & (gt_classes < self.num_classes))[0]
+            pdfs_fg = self.output_pdf(fcs[fg_inds,...])
+
+            gt_redshifts = cat([x.gt_redshift for x in instances])
+            
+            nlls_fg = -pdfs_fg.log_prob(gt_redshifts[fg_inds])
+
+            nlls = -pdfs.log_prob(gt_redshifts)[fg_inds]
+            return{"redshift_loss": torch.mean(nlls)}
+
+        else:  
+            zs = torch.tensor(np.linspace(-1,5,200)).to(fcs.device)
+            
+            probs = torch.zeros((num_instances_per_img[0],200)).to(fcs.device)
+            for i,z in enumerate(zs):
+                #probs.append(outputs.log_prob(z))
+                probs[:,i] = pdfs.log_prob(z)
+            
+            
+            for i,pred_instances in enumerate(instances):
+                pred_instances.pred_redshift_pdf = probs
+            
+            return instances
+                   
+                           
+    def forward(self, images, features, proposals, targets=None):
+        del images
+        if self.training:
+            proposals = self.label_and_sample_proposals(proposals, targets)
+
+        if self.training:
+            # Need targets to box head
+            losses = self._forward_box(features, proposals, targets)
+            losses.update(self._forward_mask(features, proposals))
+            losses.update(self._forward_redshift(features, proposals))
+            losses.update(self._forward_keypoint(features, proposals))
+            return proposals, losses
+        else:
+            pred_instances = self._forward_box(features, proposals)
+            pred_instances = self.forward_with_given_boxes(features, pred_instances)
+            pred_instances = self._forward_redshift(features, pred_instances)
+            return pred_instances, {}
+
+
+@ROI_HEADS_REGISTRY.register()
+class ConvRedshiftROIHeads(StandardROIHeads):
+    def __init__(self, cfg, input_shape):
+        super().__init__(cfg, input_shape)
+        
+        in_features  = cfg.MODEL.ROI_HEADS.IN_FEATURES
+        self.redshift_pooler= ROIPooler(
+            output_size=7,
+            scales=tuple(1.0 / input_shape[k].stride for k in in_features),
+            sampling_ratio=0,
+            pooler_type='ROIAlignV2',
+        )
+        
+        in_channels = [input_shape[f].channels for f in in_features]
+        in_channels = in_channels[0]
+        inshape = ShapeSpec(channels=in_channels, height=7, width=7)
+        
+        #The input dim should follow from the classification head
+        self._output_size = (inshape.channels, inshape.height, inshape.width)
+        self.redshift_fc = nn.Linear(int(np.prod(self._output_size)), 1)
+        
+        #self.redshift_fc = nn.Linear(12, 1)
+
+        
+    def _forward_redshift(self, features, instances):
+
+        if self.redshift_pooler is not None:
+            features = [features[f] for f in self.box_in_features]
+            boxes = [x.proposal_boxes if self.training else x.pred_boxes for x in instances]
+            features = self.redshift_pooler(features, boxes)
+        
+        features = nn.Flatten()(features)
+        
+        prediction = self.redshift_fc(features)
+        
+        num_instances_per_img = [len(i) for i in instances]
+        
+        if self.training:
+            diff = prediction - cat([x.gt_redshift for x in instances])
+            return{"redshift_loss": torch.square(diff).mean()}
+        else:  
+            z_pred = torch.split(prediction, num_instances_per_img, dim=0)
+            for z, pred_instances in zip(z_pred, instances):
+                pred_instances.pred_redshift = z
+            return instances
+
+                           
+    def forward(
+        self,
+        images: ImageList,
+        features: Dict[str, torch.Tensor],
+        proposals: List[Instances],
+        targets: Optional[List[Instances]] = None,
+        ) -> Tuple[List[Instances], Dict[str, torch.Tensor]]:
+        """
+        See :class:`ROIHeads.forward`.
+        """
+        del images
+        if self.training:
+            assert targets, "'targets' argument is required during training"
+            proposals = self.label_and_sample_proposals(proposals, targets)
+        del targets
+
+        if self.training:
+            losses = self._forward_box(features, proposals)
+            # Usually the original proposals used by the box head are used by the mask, keypoint
+            # heads. But when `self.train_on_pred_boxes is True`, proposals will contain boxes
+            # predicted by the box head.
+            losses.update(self._forward_mask(features, proposals))
+            losses.update(self._forward_keypoint(features, proposals))
+            losses.update(self._forward_redshift(features, proposals))
+            return proposals, losses
+        else:
+            pred_instances = self._forward_box(features, proposals)
+            # During inference cascaded prediction is used: the mask and keypoints heads are only
+            # applied to the top scoring box detections.
+            pred_instances = self.forward_with_given_boxes(features, pred_instances)
+            pred_instances = self._forward_redshift(features, pred_instances)
+            return pred_instances, {}
 

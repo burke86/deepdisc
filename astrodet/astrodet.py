@@ -145,6 +145,23 @@ def set_mpl_style():
     
 
 class NewAstroTrainer(SimpleTrainer):
+    '''
+    Use this for models that use yacs cfg files
+
+    Parameters
+    ----------
+    model: torch nn.module
+        The model being trained
+    data_loader: detectron2 DataLoader
+        The data loader that loads the training set
+    optimizer:
+        The learning optimizer
+    cfg: yacs file
+        The model config 
+
+
+    '''
+
     def __init__(self, model, data_loader, optimizer, cfg):
         super().__init__(model, data_loader, optimizer)
         #super().__init__(model, data_loader, optimizer)
@@ -230,54 +247,6 @@ class NewAstroTrainer(SimpleTrainer):
         self.vallossList.append(val_loss)
 
 
-        
-class AstroTrainer(SimpleTrainer):
-    def __init__(self, model, data_loader, optimizer, cfg):
-        super().__init__(model, data_loader, optimizer)
-        
-        # Borrowed from DefaultTrainer constructor
-        # see https://detectron2.readthedocs.io/en/latest/_modules/detectron2/engine/defaults.html#DefaultTrainer
-        self.checkpointer = checkpointer.DetectionCheckpointer(
-            # Assume you want to save checkpoints together with logs/statistics
-            model,
-            cfg.OUTPUT_DIR
-        )
-        # load weights
-        self.checkpointer.load(cfg.MODEL.WEIGHTS)
-        
-        # record loss over iteration 
-        self.lossList = []
-        
-        self.period = 20
-        self.iterCount = 0
-    
-    #Note: print out loss over p iterations
-    def set_period(self,p):
-        self.period = p
-        
-    # Copied directly from SimpleTrainer, add in custom manipulation with the loss
-    # see https://detectron2.readthedocs.io/en/latest/_modules/detectron2/engine/train_loop.html#SimpleTrainer
-    def run_step(self):
-        self.iterCount = self.iterCount + 1
-        assert self.model.training, "[SimpleTrainer] model was changed to eval mode!"
-        start = time.perf_counter()
-        data_time = time.perf_counter() - start
-        data = next(self._data_loader_iter)
-        # Note: in training mode, model() returns loss
-        loss_dict = self.model(data)
-        #print(loss_dict)
-        if isinstance(loss_dict, torch.Tensor):
-            losses = loss_dict
-            loss_dict = {"total_loss": loss_dict}
-        else:
-            losses = sum(loss_dict.values())
-        self.optimizer.zero_grad()
-        losses.backward()
-        self.optimizer.step()
-        self.lossList.append(losses.cpu().detach().numpy())
-        if self.iterCount % self.period == 0 and comm.is_main_process():
-            print("Iteration: ", self.iterCount, " time: ", data_time," loss: ",losses)
-            
 
 
 class AstroPredictor:
@@ -356,11 +325,7 @@ class AstroPredictor:
             
 class COCOeval_opt_custom(COCOeval_opt):
     '''
-    YL: : this function is copied from COCOeval_opt
-    I put it here to output things during function call
-    refer to line 269
 
-    YL:  Override in order to put in some output commands
     '''
     
     def evaluate_custom(self):
@@ -832,7 +797,7 @@ def convert_to_coco_json(dataset_name, output_file, mbins=[0,1],mind=-1, allow_c
 class COCOEvaluatorRecall(COCOEvaluator):
 
     """
-    YL: Override this class in order to call the custom function above
+    Override this class in order to call the custom function above
     
     Evaluate AR for object proposals, AP for instance detection/segmentation, AP
     for keypoint detection outputs using COCO's metrics.
@@ -1101,14 +1066,37 @@ class COCOEvaluatorRecall(COCOEvaluator):
         results["results_per_category"] = precision_per_category
 
         results.update({"AP-" + name: ap for name, ap in results_per_category})
-        return results
-    
-
-
-
+        return results 
 
 
 def read_image_hsc(filenames, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8, A=1e4, do_norm=False):
+    
+    '''
+    Read in a formatted HSC image
+
+    Parameters
+    ----------
+    filenames: list
+        The list of g,r,i band files
+    normalize: str
+        The key word for the normalization scheme
+    stretch, Q, m: float, int, float
+        Parameters for lupton normalization
+    ceil_percentile:
+        If do_norm is true, cuts data off at this percentile
+    dtype: numpy datatype
+        data type of the output array
+    A: float
+        scaling factor for zscoring
+    do_norm: boolean   
+        For normalizing top fit dtype range
+
+    Returns
+    -------
+    Scaled image
+
+    '''
+    
     def norm(z,r,g):
         max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
         print(max_RGB)
@@ -1282,6 +1270,34 @@ def read_image_hsc(filenames, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_p
         print('Normalize keyword not recognized.')
 
 def read_image_decam(filename, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_percentile=99.995, dtype=np.uint8, A=1e4, do_norm=False):
+    
+    
+    '''
+    Read in a formatted simulated DECam image
+
+    Parameters
+    ----------
+    filenames: list
+        The list of g,r,i band files
+    normalize: str
+        The key word for the normalization scheme
+    stretch, Q, m: float, int, float
+        Parameters for lupton normalization
+    ceil_percentile:
+        If do_norm is true, cuts data off at this percentile
+    dtype: numpy datatype
+        data type of the output array
+    A: float
+        scaling factor for zscoring
+    do_norm: boolean   
+        For normalizing top fit dtype range
+
+    Returns
+    -------
+    Scaled image
+
+    '''
+    
     def norm(z,r,g):
         max_RGB = np.nanpercentile([z, r, g], ceil_percentile)
         print(max_RGB)
@@ -1456,24 +1472,76 @@ def read_image_decam(filename, normalize='lupton', stretch=0.5, Q=10, m=0, ceil_
 
 # ### Augment Data
 def gaussblur(image):
+    '''
+    Parameters
+    ----------
+    image: ndarray
+
+    Returns
+    -------
+    augmented image
+
+    '''
     aug = iaa.GaussianBlur(sigma=(0.0, np.random.random_sample()*4+2))
     return aug.augment_image(image)
 
 def addelementwise16(image):
+    '''
+    Parameters
+    ----------
+    image: ndarray
+
+    Returns
+    -------
+    augmented image
+
+    '''
     aug = iaa.AddElementwise((-3276, 3276))
     return aug.augment_image(image)
 
 def addelementwise8(image):
+    '''
+    Parameters
+    ----------
+    image: ndarray
+
+    Returns
+    -------
+    augmented image
+
+    '''
     aug = iaa.AddElementwise((-25, 25))
     return aug.augment_image(image)
 
 
 def addelementwise(image):
+    '''
+    Parameters
+    ----------
+    image: ndarray
+
+    Returns
+    -------
+    augmented image
+
+    '''
     aug = iaa.AddElementwise((-image.max()*.1, image.max()*.1))
     return aug.augment_image(image)
 
 
 class train_mapper_cls:
+    '''
+    This class is used to load in and augment data during training. 
+    It is initialized and then called during training where it augments images and returns them along with annotations
+
+    Parameters
+    ----------
+    read_image_args: keyword args
+
+    These are the necessary arguments for the read_image_hsc function
+
+    '''
+
     def __init__(self,**read_image_args):
         self.ria = read_image_args
 
@@ -1529,6 +1597,20 @@ class train_mapper_cls:
         }
 
 class test_mapper_cls:
+
+    '''
+    This class is used to load in and augment data during validation. 
+    It is initialized and then called during validation where it augments images and returns them along with annotations
+
+    Parameters
+    ----------
+    read_image_args: keyword args
+
+    These are the necessary arguments for the read_image_hsc function
+
+    '''
+
+
     def __init__(self,**read_image_args):
         self.ria = read_image_args
 
@@ -1566,7 +1648,25 @@ class test_mapper_cls:
 
 # ### Format Astro R-CNN dataset for detectron instance segmentation models
 def get_astro_dicts(img_dir):
-        
+    
+    '''
+    This function reads in the scarlet model files and formats annotations for detectron2
+    
+    Parameters
+    ----------
+    img_dir: str
+        Directory where the scarlet outputs are stored
+    
+    Returns
+    -------
+    dataset_dicts: list
+        A list of dictionaries that contain annotations for train, test, val sets
+    
+    
+    '''
+
+
+
     # It's weird to call this img_dir
     set_dirs = sorted(glob.glob('%s/set_*' % img_dir))
     
