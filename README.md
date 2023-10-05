@@ -18,6 +18,8 @@ Setup:
 
 conda env create -f environment.yml
 
+You will also need to install scarlet and detectron2. Building from the source is recommended for both
+
 Usage:
 ```
 demo_decam.ipynb
