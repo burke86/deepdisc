@@ -1,0 +1,17 @@
+# Changes here will be overwritten by Copier
+_commit: v1.4.3
+_src_path: gh:lincc-frameworks/python-project-template
+author_email: gmerz3@illinois.edu
+author_name: Grant Merz
+create_example_module: true
+custom_install: true
+include_benchmarks: false
+include_docs: true
+include_notebooks: true
+mypy_type_checking: none
+package_name: deepdisc
+preferred_linter: pylint
+project_license: MIT
+project_name: deepdisc
+use_gitlfs: none
+use_isort: true

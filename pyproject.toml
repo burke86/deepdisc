@@ -1,0 +1,63 @@
+[project]
+name = "deepdisc"
+license = {file = "LICENSE"}
+readme = "README.md"
+authors = [
+    { name = "Grant Merz", email = "gmerz3@illinois.edu" },
+    { name = "Colin Burke", email = "colinjb2@illinois.edu" }
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "License :: OSI Approved :: MIT License",
+    "Intended Audience :: Developers",
+    "Intended Audience :: Science/Research",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Topic :: Scientific/Engineering :: Astronomy",
+]
+dynamic = ["version"]
+dependencies = [
+]
+
+[metadata]
+description = "Deep learning for astronomical image processing using detectron2."
+long_description = { file = "README.md" }
+url = "https://github.com/lincc-frameworks/deepdisc"
+
+# On a mac, install optional dependencies with `pip install '.[dev]'` (include the single quotes)
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-cov", # Used to report total code coverage
+    "pre-commit", # Used to run checks before finalizing a git commit
+    "sphinx", # Used to automatically generate documentation
+    "sphinx-rtd-theme", # Used to render documentation
+    "sphinx-autoapi", # Used to automatically generate api documentation
+    "pylint", # Used for static linting of files
+    # if you add dependencies here while experimenting in a notebook and you
+    # want that notebook to render in your documentation, please add the
+    # dependencies to ./docs/requirements.txt as well.
+    "nbconvert", # Needed for pre-commit check to clear output from Python notebooks
+    "nbsphinx", # Used to integrate Python notebooks into Sphinx documentation
+    "ipython", # Also used in building notebooks into Sphinx
+    "matplotlib", # Used in sample notebook intro_notebook.ipynb
+    "numpy", # Used in sample notebook intro_notebook.ipynb
+]
+
+[build-system]
+requires = [
+    "setuptools>=62", # Used to build and package the Python project
+    "setuptools_scm>=6.2", # Gets release version from git. Makes it available programmatically
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+write_to = "src/deepdisc/_version.py"
+
+[tool.pytest.ini_options]
+testpaths = [
+    "tests",
+]
+
+[tool.coverage.run]
+omit=["src/deepdisc/_version.py"]
