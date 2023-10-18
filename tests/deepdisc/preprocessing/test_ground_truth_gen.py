@@ -1,7 +1,6 @@
 import pytest
 import numpy as np
-import scarlet
-import scarlet.wavelet
+
 from deepdisc.preprocessing.ground_truth_gen import mad_wavelet_own
 
 @pytest.fixture

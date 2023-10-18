@@ -1,5 +1,6 @@
 
 import scarlet
+import scarlet.wavelet
 from astropy.stats import median_absolute_deviation as astromad
 
 
