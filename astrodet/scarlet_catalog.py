@@ -18,12 +18,22 @@ from astropy.stats import median_absolute_deviation as astromad
 from astropy.visualization.lupton_rgb import LinearMapping, AsinhMapping
 
 
-def write_scarlet_results(datas, observation, starlet_sources, model_frame, catalog_deblended,
-                           segmentation_masks, dirpath, filters, s, source_catalog=None): 
+def write_scarlet_results(
+    datas,
+    observation,
+    starlet_sources,
+    model_frame,
+    catalog_deblended,
+    segmentation_masks,
+    dirpath,
+    filters,
+    s,
+    source_catalog=None,
+):
     """
     Saves images in each channel, with headers for each source in image,
     such that the number of headers = number of sources detected in image.
-    
+
     Parameters
     ----------
     datas: array
@@ -42,19 +52,19 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
         List of segmentation mask of each object in image
     dirpath : str
         Path to HSC image file directory
-    filters : list 
-        A list of filters for your images. Default is ['g', 'r', 'i'].    
+    filters : list
+        A list of filters for your images. Default is ['g', 'r', 'i'].
     s : str
         File basename string
 
-    
+
     Returns
     -------
     filename : dict
         dictionary of all paths to the saved scarlet files for the particular dataset.
         Saved image and model files for each filter, and one total segmentation mask file for all filters.
     """
-    
+
     def _make_hdr(starlet_source, cat, source_cat=None):
         """
         Helper function to make FITS header and insert metadata.
@@ -64,51 +74,49 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
             starlet_source object for source k
         cat: dict
             catalog data for source k
-            
+
         Returns
         -------
         model_hdr : Astropy fits.Header
             FITS header for source k with catalog metadata
         """
-        # For each header, assign descriptive data about each source 
+        # For each header, assign descriptive data about each source
         # (x0, y0, w, h) in absolute floating pixel coordinates
         bbox_h = starlet_source.bbox.shape[1]
         bbox_w = starlet_source.bbox.shape[2]
-        bbox_y = starlet_source.bbox.origin[1] + int(np.floor(bbox_w/2)) # y-coord of the source's center
-        bbox_x = starlet_source.bbox.origin[2] + int(np.floor(bbox_w/2)) # x-coord of the source's center
-        
+        bbox_y = starlet_source.bbox.origin[1] + int(np.floor(bbox_w / 2))  # y-coord of the source's center
+        bbox_x = starlet_source.bbox.origin[2] + int(np.floor(bbox_w / 2))  # x-coord of the source's center
 
         # Ellipse parameters (a, b, theta) from deblend catalog
-        e_a, e_b, e_theta = cat['a'], cat['b'], cat['theta']
-        ell_parm = np.concatenate((cat['a'], cat['b'], cat['theta']))
+        e_a, e_b, e_theta = cat["a"], cat["b"], cat["theta"]
+        ell_parm = np.concatenate((cat["a"], cat["b"], cat["theta"]))
 
         # Add info to header
         model_hdr = fits.Header()
-        model_hdr['bbox'] = ','.join(map(str, [bbox_x, bbox_y, bbox_w, bbox_h]))
-        model_hdr['area'] = bbox_w * bbox_h
-        #model_hdr['ell_parm'] = ','.join(map(str, list(ell_parm)))
+        model_hdr["bbox"] = ",".join(map(str, [bbox_x, bbox_y, bbox_w, bbox_h]))
+        model_hdr["area"] = bbox_w * bbox_h
+        # model_hdr['ell_parm'] = ','.join(map(str, list(ell_parm)))
 
         if source_cat is not None:
-            catalog_redshift = source_cat['redshift_truth']
-            oid = source_cat['objectId']
-            imag = source_cat['mag_i']
+            catalog_redshift = source_cat["redshift_truth"]
+            oid = source_cat["objectId"]
+            imag = source_cat["mag_i"]
             if not np.isfinite(imag):
-                imag=-1
-            model_hdr['cat_id'] = 1 # Category ID
-            model_hdr['cat_z'] = catalog_redshift
-            model_hdr['objid'] = oid
-            model_hdr['mag_i'] = imag
+                imag = -1
+            model_hdr["cat_id"] = 1  # Category ID
+            model_hdr["cat_z"] = catalog_redshift
+            model_hdr["objid"] = oid
+            model_hdr["mag_i"] = imag
 
-        
         return model_hdr
 
     # Create dict for all saved filenames
     segmask_hdul = []
     model_hdul = []
     filenames = {}
-    
+
     # Filter loop
-    for i, f in enumerate([filters[0]]): # We don't really need to do this for each filter
+    for i, f in enumerate([filters[0]]):  # We don't really need to do this for each filter
         f = f.upper()
 
         # Primary HDU is full image
@@ -116,7 +124,6 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
 
         # Create header entry for each scarlet source
         for k, (src, cat) in enumerate(zip(starlet_sources, catalog_deblended)):
-
             source_cat = source_catalog.iloc[k]
             # Get each model, make into image
             model = starlet_sources[k].get_model(frame=model_frame)
@@ -124,32 +131,30 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
             model = src.bbox.extract_from(model)
 
             model_hdr = _make_hdr(starlet_sources[k], cat, source_cat)
-            
+
             model_hdu = fits.ImageHDU(data=model[i], header=model_hdr)
             model_primary = fits.PrimaryHDU()
 
             model_hdul.append(model_hdu)
 
-        # Write final fits file to specified location  
+        # Write final fits file to specified location
         # Save full image and then headers per source w/ descriptive info
         save_img_hdul = fits.HDUList([img_hdu])
         save_model_hdul = fits.HDUList([model_primary, *model_hdul])
-                
+
         # Save list of filenames in dict for each band
-        filenames[f'img_{f}'] = os.path.join(dirpath, f'{f}-{s}_scarlet_img.fits')
-        save_img_hdul.writeto(filenames[f'img_{f}'], overwrite=True)
-        
-        filenames[f'model_{f}'] = os.path.join(dirpath, f'{f}-{s}_scarlet_model.fits')
-        save_model_hdul.writeto(filenames[f'model_{f}'], overwrite=True)
-        
-        
-    # If we have segmentation mask data, save them as a separate fits file    
-    #Just using the first band for the segmentation mask
+        filenames[f"img_{f}"] = os.path.join(dirpath, f"{f}-{s}_scarlet_img.fits")
+        save_img_hdul.writeto(filenames[f"img_{f}"], overwrite=True)
+
+        filenames[f"model_{f}"] = os.path.join(dirpath, f"{f}-{s}_scarlet_model.fits")
+        save_model_hdul.writeto(filenames[f"model_{f}"], overwrite=True)
+
+    # If we have segmentation mask data, save them as a separate fits file
+    # Just using the first band for the segmentation mask
     if segmentation_masks is not None:
         for i, f in enumerate(filters[0]):
             # Create header entry for each scarlet source
             for k, (src, cat) in enumerate(zip(starlet_sources, catalog_deblended)):
-                
                 source_cat = source_catalog.iloc[k]
 
                 segmask_hdr = _make_hdr(starlet_sources[k], cat, source_cat)
@@ -163,17 +168,16 @@ def write_scarlet_results(datas, observation, starlet_sources, model_frame, cata
             save_segmask_hdul = fits.HDUList([segmask_primary, *segmask_hdul])
 
             # Save list of filenames in dict for each band
-            filenames['segmask'] = os.path.join(dirpath, f'{f}-{s}_scarlet_segmask.fits')
-            save_segmask_hdul.writeto(filenames['segmask'], overwrite=True)
-
+            filenames["segmask"] = os.path.join(dirpath, f"{f}-{s}_scarlet_segmask.fits")
+            save_segmask_hdul.writeto(filenames["segmask"], overwrite=True)
 
     return filenames
 
 
-def plot_stretch_Q(datas, stretches=[0.01,0.1,0.5,1], Qs=[1,10,5,100]):
+def plot_stretch_Q(datas, stretches=[0.01, 0.1, 0.5, 1], Qs=[1, 10, 5, 100]):
     """
-    Plots different normalizations of your image using the stretch, Q parameters. 
-    
+    Plots different normalizations of your image using the stretch, Q parameters.
+
     Parameters
     ----------
     stretches : array
@@ -182,17 +186,17 @@ def plot_stretch_Q(datas, stretches=[0.01,0.1,0.5,1], Qs=[1,10,5,100]):
     Qs : array
         List of Q params you want to permutate through to find optimal image normalization.
         Default is [1, 10, 5, 100]
-        
+
     Code adapted from:
         https://pmelchior.github.io/scarlet/tutorials/display.html
-        
+
     Returns
     -------
     fig : Figure object
-    
+
     """
-    
-    fig, ax = plt.subplots(len(stretches), len(Qs), figsize=(9,9))
+
+    fig, ax = plt.subplots(len(stretches), len(Qs), figsize=(9, 9))
     for i, stretch in enumerate(stretches):
         for j, Q in enumerate(Qs):
             asinh = scarlet.display.AsinhMapping(minimum=0, stretch=stretch, Q=Q)
@@ -200,15 +204,15 @@ def plot_stretch_Q(datas, stretches=[0.01,0.1,0.5,1], Qs=[1,10,5,100]):
             img_rgb = scarlet.display.img_to_rgb(datas, norm=asinh)
             ax[i][j].imshow(img_rgb)
             ax[i][j].set_title("Stretch {}, Q {}".format(stretch, Q))
-            ax[i][j].axis('off')
-            
+            ax[i][j].axis("off")
+
     return fig
 
 
 def make_catalog(datas, lvl=4, wave=True, segmentation_map=False, maskthresh=10.0, object_limit=100000):
     """
     Creates a detection catalog by combining low and high resolution data
-    
+
     Parameters
     ----------
     datas: array
@@ -218,7 +222,7 @@ def make_catalog(datas, lvl=4, wave=True, segmentation_map=False, maskthresh=10.
     wave: Bool
         set to True to use wavelet decomposition of images before combination
     subtract_background : Bool
-        if you want to subtract the background and retrieve an estimate, change to True. But default 
+        if you want to subtract the background and retrieve an estimate, change to True. But default
         is False because HSC images are already background subtracted.
     segmentation_map : Bool
         Whether to run sep segmentation map
@@ -226,9 +230,9 @@ def make_catalog(datas, lvl=4, wave=True, segmentation_map=False, maskthresh=10.
         Mask threshold for sep segmentation
     object_limit : int
         Limit on number of objects to detect in image
-        
+
     Code adapted from https://pmelchior.github.io/scarlet/tutorials/wavelet_model.html
-    
+
     Returns
     -------
     catalog: sextractor catalog
@@ -236,11 +240,11 @@ def make_catalog(datas, lvl=4, wave=True, segmentation_map=False, maskthresh=10.
     bg_rms: array
         background level for each data set (set to None if subtract_background is False)
     """
-        
+
     if type(datas) is np.ndarray:
         hr_images = datas / np.sum(datas, axis=(1, 2))[:, None, None]
         # Detection image as the sum over all images
-        #detect_image = np.sum(hr_images, axis=0)
+        # detect_image = np.sum(hr_images, axis=0)
         detect_image = np.sum(datas, axis=0)
 
     else:
@@ -270,33 +274,34 @@ def make_catalog(datas, lvl=4, wave=True, segmentation_map=False, maskthresh=10.
             detect = wave_detect[0] + wave_detect[1] + wave_detect[2]
         else:
             detect = detect_image
-    
+
     bkg = sep.Background(detect)
     # Set the limit on the number of sub-objects when deblending.
     sep.set_sub_object_limit(object_limit)
-    
+
     # Extract detection catalog with segmentation maps!
     # Can use this to retrieve ellipse params
-    catalog = sep.extract(detect, lvl, err=bkg.globalrms, segmentation_map=segmentation_map, maskthresh=maskthresh)
-        
+    catalog = sep.extract(
+        detect, lvl, err=bkg.globalrms, segmentation_map=segmentation_map, maskthresh=maskthresh
+    )
+
     # Estimate background
-    #Have to include because will no longer take ndarray
-    if type(datas) is np.ndarray and len(datas>2):
+    # Have to include because will no longer take ndarray
+    if type(datas) is np.ndarray and len(datas > 2):
         bkg_rms = np.zeros(len(datas))
-        for i,data in enumerate(datas):
-            bkg_rms[i]=mad_wavelet_own(data)
-        
+        for i, data in enumerate(datas):
+            bkg_rms[i] = mad_wavelet_own(data)
+
     else:
         bkg_rms = []
         for data in datas:
             bkg_rms.append(scarlet.wavelet.mad_wavelet(data.images))
-    
+
     return catalog, bkg_rms
 
 
-
 def mad_wavelet_own(image):
-    """ image: Median absolute deviation of the first wavelet scale.
+    """image: Median absolute deviation of the first wavelet scale.
     (WARNING: sorry to disapoint, this is not a wavelet for mad scientists)
 
     Have to use astropy mad as scipy mad does not like ignoring NaN and computing over multiple axes
@@ -311,24 +316,34 @@ def mad_wavelet_own(image):
         median absolute deviation for each image in the cube
     """
 
-    #Scale =1/1.4826 to replicate older scipy MAD behavior
-    scale=1/1.4826
-    sigma = astromad(scarlet.Starlet.from_image(image, scales=2).coefficients[0, ...], axis=(-2,-1),ignore_nan=True)
-    return sigma/scale
+    # Scale =1/1.4826 to replicate older scipy MAD behavior
+    scale = 1 / 1.4826
+    sigma = astromad(
+        scarlet.Starlet.from_image(image, scales=2).coefficients[0, ...], axis=(-2, -1), ignore_nan=True
+    )
+    return sigma / scale
 
 
-def fit_scarlet_blend(starlet_sources, observation, catalog, max_iters=15, e_rel=1e-4, plot_likelihood=True,savefigs=False,figpath=''):
-
+def fit_scarlet_blend(
+    starlet_sources,
+    observation,
+    catalog,
+    max_iters=15,
+    e_rel=1e-4,
+    plot_likelihood=True,
+    savefigs=False,
+    figpath="",
+):
     """
     Creates a detection catalog by combining low and high resolution data
-    
+
     Parameters
     ----------
     datas: array
         array of Data objects
-        
+
     Will end early if likelihood and constraints converge
-    
+
     Returns
     -------
     """
@@ -347,35 +362,35 @@ def fit_scarlet_blend(starlet_sources, observation, catalog, max_iters=15, e_rel
 
     if plot_likelihood == True:
         scarlet.display.show_likelihood(starlet_blend)
-        plt.ylabel('log-Likelihood',fontsize=15)
-        plt.ticklabel_format(style='sci', axis='y',scilimits=(0,0))
-        plt.xlabel('Iteration',fontsize=15)
+        plt.ylabel("log-Likelihood", fontsize=15)
+        plt.ticklabel_format(style="sci", axis="y", scilimits=(0, 0))
+        plt.xlabel("Iteration", fontsize=15)
         plt.xticks(fontsize=13)
         plt.yticks(fontsize=13)
         plt.subplots_adjust(left=0.2)
         if savefigs:
-            plt.savefig(figpath+'scarlet_likelihood.png')
+            plt.savefig(figpath + "scarlet_likelihood.png")
 
         plt.show()
-    
+
     return starlet_blend, logL
 
 
 def _plot_wavelet(datas):
     """
     Helper function to plot wavelet transformation diagnostic figures with scarlet
-    
+
     Parameters
     ----------
     datas: array
         array of Data objects
-    
+
     Returns
     -------
     """
-    
+
     # Declare a starlet object (and performs the transform)
-    Sw = scarlet.Starlet.from_image(datas)#, lvl=5, direct=True)
+    Sw = scarlet.Starlet.from_image(datas)  # , lvl=5, direct=True)
 
     # This is the starlet transform as an array
     w = Sw.coefficients
@@ -385,47 +400,58 @@ def _plot_wavelet(datas):
     # TODO: Clean this code up using plt.subplots()
     # The wavelet transform of the first slice of images in pictures
     lvl = w.shape[1]
-    plt.figure(figsize=(lvl*5+5,5))
-    plt.suptitle('Wavelet coefficients')
+    plt.figure(figsize=(lvl * 5 + 5, 5))
+    plt.suptitle("Wavelet coefficients")
     for i in range(lvl):
-        plt.subplot(1, lvl, i+1)
-        plt.title('scale' + str(i+1))
-        plt.imshow(w[0,i], cmap='inferno')
+        plt.subplot(1, lvl, i + 1)
+        plt.title("scale" + str(i + 1))
+        plt.imshow(w[0, i], cmap="inferno")
         plt.colorbar()
     plt.show()
 
     # Making sure we recover the original image
-    plt.figure(figsize=(30,10))
+    plt.figure(figsize=(30, 10))
     plt.subplot(131)
-    plt.title('Original image', fontsize=20)
-    plt.imshow(datas[0], cmap='inferno')
+    plt.title("Original image", fontsize=20)
+    plt.imshow(datas[0], cmap="inferno")
     plt.colorbar()
     plt.subplot(132)
-    plt.title('Starlet-reconstructed image', fontsize=20)
-    plt.imshow(iw[0], cmap='inferno')
+    plt.title("Starlet-reconstructed image", fontsize=20)
+    plt.imshow(iw[0], cmap="inferno")
     plt.colorbar()
     plt.subplot(133)
-    plt.title('Absolute difference', fontsize=20)
-    plt.imshow((np.abs(iw[0]-datas[0])), cmap='inferno')
+    plt.title("Absolute difference", fontsize=20)
+    plt.imshow((np.abs(iw[0] - datas[0])), cmap="inferno")
     plt.colorbar()
     plt.show()
-    
+
     return
 
 
-def _plot_scene(starlet_sources, observation, norm, catalog, source_catalog, show_model=True, show_rendered=True,
-               show_observed=True, show_residual=True, add_labels=True, add_boxes=True,
-               add_ellipses=True,savefigs=False,figpath=''):
-
-    
+def _plot_scene(
+    starlet_sources,
+    observation,
+    norm,
+    catalog,
+    source_catalog,
+    show_model=True,
+    show_rendered=True,
+    show_observed=True,
+    show_residual=True,
+    add_labels=True,
+    add_boxes=True,
+    add_ellipses=True,
+    savefigs=False,
+    figpath="",
+):
     """
     Helper function to plot scene with scarlet
-    
+
     Parameters
     ----------
     starlet_sources: List
         List of ScarletSource objects
-    observation: 
+    observation:
         Scarlet observation objects
     norm:
         Scarlet normalization for plotting
@@ -445,25 +471,30 @@ def _plot_scene(starlet_sources, observation, norm, catalog, source_catalog, sho
         Whether to add bounding boxes to each panel
     add_ellipses: bool
         Whether to add ellipses to each panel
-    
-    
+
+
     Returns
     -------
     fig : matplotlib Figure
         Figure object
     """
-    
-    fig = scarlet.display.show_scene(starlet_sources, observation=observation, norm=norm,
-                                     show_model=show_model, show_rendered=show_rendered,
-                                     show_observed=show_observed, show_residual=show_residual,
-                                     add_labels=add_labels, add_boxes=add_boxes)
-        
-    for ax in fig.axes:
 
+    fig = scarlet.display.show_scene(
+        starlet_sources,
+        observation=observation,
+        norm=norm,
+        show_model=show_model,
+        show_rendered=show_rendered,
+        show_observed=show_observed,
+        show_residual=show_residual,
+        add_labels=add_labels,
+        add_boxes=add_boxes,
+    )
+
+    for ax in fig.axes:
         # Plot sep ellipse around all sources from the detection catalog
         if add_ellipses == True:
-    
-            '''
+            """
             for k, src in enumerate(catalog):
                 # See https://sextractor.readthedocs.io/en/latest/Position.html
                 e = Ellipse(xy=(src['x'], src['y']),
@@ -475,43 +506,62 @@ def _plot_scene(starlet_sources, observation, norm, catalog, source_catalog, sho
                 e.set_edgecolor('white')
 
                 ax.add_artist(e)
-            '''
-            
+            """
+
             for i in range(len(source_catalog)):
                 obj = source_catalog.iloc[i]
                 # See https://sextractor.readthedocs.io/en/latest/Position.html
-                e = Ellipse(xy=(obj['new_x'], obj['new_y']),
-                            width=10,
-                            height=10,
-                            angle=0)
+                e = Ellipse(xy=(obj["new_x"], obj["new_y"]), width=10, height=10, angle=0)
 
-                e.set_facecolor('none')
-                e.set_edgecolor('white')
+                e.set_facecolor("none")
+                e.set_edgecolor("white")
 
                 ax.add_artist(e)
 
-        ax.axis('off')
+        ax.axis("off")
 
     fig.subplots_adjust(wspace=0.01)
-    
+
     if savefigs:
-        plt.savefig(figpath+'scarlet_out.png')
+        plt.savefig(figpath + "scarlet_out.png")
 
     plt.show()
-    
+
     return fig
 
 
-def run_scarlet(datas, filters, source_catalog=None, stretch=0.1, Q=5, sigma_model=1, sigma_obs=5,
-                psf=None, subtract_background=False, max_chi2=5000, max_iters=15, morph_thresh=0.1,
-                lvl=5, lvl_segmask=2, maskthresh=0.025,
-                segmentation_map=True, wave_cat = False, plot_wavelet=False, plot_likelihood=True,
-                plot_scene=False, plot_sources=False, add_ellipses=True,
-                add_labels=False, add_boxes=False,percentiles=(1,99),savefigs=False,figpath='',weights=None):
-
-    
-    """ Run P. Melchior's scarlet (https://github.com/pmelchior/scarlet) implementation 
-    for source separation. This function will create diagnostic plots, a source detection catalog, 
+def run_scarlet(
+    datas,
+    filters,
+    source_catalog=None,
+    stretch=0.1,
+    Q=5,
+    sigma_model=1,
+    sigma_obs=5,
+    psf=None,
+    subtract_background=False,
+    max_chi2=5000,
+    max_iters=15,
+    morph_thresh=0.1,
+    lvl=5,
+    lvl_segmask=2,
+    maskthresh=0.025,
+    segmentation_map=True,
+    wave_cat=False,
+    plot_wavelet=False,
+    plot_likelihood=True,
+    plot_scene=False,
+    plot_sources=False,
+    add_ellipses=True,
+    add_labels=False,
+    add_boxes=False,
+    percentiles=(1, 99),
+    savefigs=False,
+    figpath="",
+    weights=None,
+):
+    """Run P. Melchior's scarlet (https://github.com/pmelchior/scarlet) implementation
+    for source separation. This function will create diagnostic plots, a source detection catalog,
     and fit a model for all sources in the observation scene (image).
 
 
@@ -531,7 +581,7 @@ def run_scarlet(datas, filters, source_catalog=None, stretch=0.1, Q=5, sigma_mod
         plotting parameter
     sigma_model: float
         scarlet model psf
-    sigma_obs: FWHM for observational psf.  Use psf argument instead if you have an image of the psf 
+    sigma_obs: FWHM for observational psf.  Use psf argument instead if you have an image of the psf
     psf: ndarray
         psf image array
     max_iters: int
@@ -542,12 +592,12 @@ def run_scarlet(datas, filters, source_catalog=None, stretch=0.1, Q=5, sigma_mod
         detection level for wavelet catalog detection
     lvl_segmask: int
         segmentation mask detection level
-    
+
     subtract_background : boolean
         Whether or not to estimate and subtract the background (often background is already subtracted)
         Detault is False
     plot_wavelet : boolean
-        Plot starlet wavelet transform and inverse transform at different scales. 
+        Plot starlet wavelet transform and inverse transform at different scales.
         NOTE: Not really useful at large image sizes (> ~few hundred pixels length/height)
         Default is False
     plot_detections : boolean
@@ -557,7 +607,7 @@ def run_scarlet(datas, filters, source_catalog=None, stretch=0.1, Q=5, sigma_mod
     plot_scene : boolean
         Plot full scene with the model, rendered model, observation, and residual. Default is False.
     plot_sources : boolean
-        Plot the model, rendered model, observation, and spectrum across channels for each object. 
+        Plot the model, rendered model, observation, and spectrum across channels for each object.
         WARNING: Not advised to do this with a large image with many sources! Default is False
     plot_first_isolated_comp : boolean
         Plot the subtracted and isolated first (or any) starlet component. Recommended for finding a bright
@@ -579,72 +629,78 @@ def run_scarlet(datas, filters, source_catalog=None, stretch=0.1, Q=5, sigma_mod
     segmentation_masks: list
         List of segmentation mask of each object in image
 
-    
+
     """
-    
-    #norm = scarlet.display.AsinhMapping(minimum=0, stretch=stretch, Q=Q)
-    norm = scarlet.display.AsinhPercentileNorm(datas,percentiles=percentiles)   
+
+    # norm = scarlet.display.AsinhMapping(minimum=0, stretch=stretch, Q=Q)
+    norm = scarlet.display.AsinhPercentileNorm(datas, percentiles=percentiles)
 
     if wave_cat:
         # Generate source catalog using wavelets
         t0 = time.time()
         catalog, bg_rms_hsc = make_catalog(datas, lvl, wave=False)
-        print(time.time()-t0)
+        print(time.time() - t0)
         # If image is already background subtracted, weights are set to 1
         if subtract_background:
             weights = np.ones_like(datas) / (bg_rms_hsc**2)[:, None, None]
         else:
             weights = np.ones_like(datas)
-    
-        print("Sep found ", len(catalog), "objects")
-        Rs = np.sqrt(catalog['a']**2 + catalog['b']**2)
-        spread = Rs/sigma_obs
-        chi2s = np.zeros(len(catalog))
-        centers =[(src['y'], src['x']) for src in catalog] # y needs to be first
 
-    
+        print("Sep found ", len(catalog), "objects")
+        Rs = np.sqrt(catalog["a"] ** 2 + catalog["b"] ** 2)
+        spread = Rs / sigma_obs
+        chi2s = np.zeros(len(catalog))
+        centers = [(src["y"], src["x"]) for src in catalog]  # y needs to be first
+
     else:
         print("Source catalog has ", len(source_catalog), "objects")
         observation_psf = scarlet.ImagePSF(psf)
-        observation = scarlet.Observation(datas, psf=observation_psf, weights=weights, channels=filters).match(model_frame)   
-        chi2s = np.zeros(len(source_catalog))     
-        centers =[(source_catalog.iloc[i]['new_y'], source_catalog.iloc[i]['new_x']) for i in range(len(source_catalog))]
+        observation = scarlet.Observation(
+            datas, psf=observation_psf, weights=weights, channels=filters
+        ).match(model_frame)
+        chi2s = np.zeros(len(source_catalog))
+        centers = [
+            (source_catalog.iloc[i]["new_y"], source_catalog.iloc[i]["new_x"])
+            for i in range(len(source_catalog))
+        ]
 
     # Plot wavelet transform at different scales
     if plot_wavelet == True:
         _plot_wavelet(datas)
-        
+
     # Define model frame and observations:
-    model_psf = scarlet.GaussianPSF(sigma=sigma_model) #, boxsize=100)
+    model_psf = scarlet.GaussianPSF(sigma=sigma_model)  # , boxsize=100)
     model_frame = scarlet.Frame(datas.shape, psf=model_psf, channels=filters)
 
     observation_psf = scarlet.ImagePSF(psf)
-    #observation_psf = scarlet.GaussianPSF(sigma=sigma_obs)
-    observation = scarlet.Observation(datas, psf=observation_psf, weights=weights, channels=filters).match(model_frame)        
-          
-    # Initialize starlet sources to be fit. Assume extended sources for all because 
+    # observation_psf = scarlet.GaussianPSF(sigma=sigma_obs)
+    observation = scarlet.Observation(datas, psf=observation_psf, weights=weights, channels=filters).match(
+        model_frame
+    )
+
+    # Initialize starlet sources to be fit. Assume extended sources for all because
     # we are not looking at all detections in each image
-    
+
     # TODO: Plot chi2 vs. binned size and mag. Implement conidition if chi2 > xxx then
     # add another component until larger sources are modeled well
     print("Initializing starlet sources to be fit.")
-        
+
     # Compute radii and spread of sources
     t0 = time.time()
     # Loop through detections in catalog
-    
-    starlet_sources,skipped = scarlet.initialization.init_all_sources(model_frame,
-                                                           centers,
-                                                           observation,
-                                                           max_components=2,
-                                                           thresh=morph_thresh,
-                                                           fallback=True,
-                                                           silent=True,
-                                                           set_spectra=False
-                                                          )
-    
-        
-    '''
+
+    starlet_sources, skipped = scarlet.initialization.init_all_sources(
+        model_frame,
+        centers,
+        observation,
+        max_components=2,
+        thresh=morph_thresh,
+        fallback=True,
+        silent=True,
+        set_spectra=False,
+    )
+
+    """
     for k, src in enumerate(catalog):
 
         # Is the source compact relative to the PSF?
@@ -659,39 +715,46 @@ def run_scarlet(datas, filters, source_catalog=None, stretch=0.1, Q=5, sigma_mod
 
         
         starlet_sources.append(new_source)
-    '''
+    """
     # Fit scarlet blend
-    starlet_blend, logL = fit_scarlet_blend(starlet_sources, observation, catalog,max_iters=max_iters, 
-                                            plot_likelihood=plot_likelihood,savefigs=savefigs,figpath=figpath)
-    print(time.time()-t0)
-
+    starlet_blend, logL = fit_scarlet_blend(
+        starlet_sources,
+        observation,
+        catalog,
+        max_iters=max_iters,
+        plot_likelihood=plot_likelihood,
+        savefigs=savefigs,
+        figpath=figpath,
+    )
+    print(time.time() - t0)
 
     # Extract the deblended catalog and update the chi2 residuals
-    print('Extracting deblended catalog.')
-    
+    print("Extracting deblended catalog.")
+
     catalog_deblended = []
     segmentation_masks = []
-        
-    for k, src in enumerate(starlet_sources):
 
+    for k, src in enumerate(starlet_sources):
         model = src.get_model(frame=model_frame)
         model = observation.render(model)
         # Compute in bbox only
         model = src.bbox.extract_from(model)
-        bkgmod = sep.Background(np.sum(model,axis=0))
-        
+        bkgmod = sep.Background(np.sum(model, axis=0))
+
         # Run sep
         try:
-            cat, _ = make_catalog(model, lvl_segmask, wave=False, segmentation_map=False, maskthresh=maskthresh)
+            cat, _ = make_catalog(
+                model, lvl_segmask, wave=False, segmentation_map=False, maskthresh=maskthresh
+            )
         except:
-            print(f'Exception with source {k}')
+            print(f"Exception with source {k}")
             cat = []
-        #if segmentation_map == True:
+        # if segmentation_map == True:
         #    cat, mask = cat
         # If more than 1 source is detected for some reason (e.g. artifacts)
         if len(cat) > 1:
             # keep the brightest
-            idx = np.argmax([c['cflux'] for c in cat])
+            idx = np.argmax([c["cflux"] for c in cat])
             cat = cat[idx]
         #    if segmentation_map == True:
         #        mask = mask[idx]
@@ -702,34 +765,48 @@ def run_scarlet(datas, filters, source_catalog=None, stretch=0.1, Q=5, sigma_mod
         # Append to full catalog
         if segmentation_map == True:
             # For some reason sep doesn't like these images, so do the segmask ourselves for now
-            model_det = np.sum(model,axis=0)
+            model_det = np.sum(model, axis=0)
             mask = np.zeros_like(model_det)
-            mask[model_det>lvl_segmask*bkgmod.globalrms] = 1
+            mask[model_det > lvl_segmask * bkgmod.globalrms] = 1
             segmentation_masks.append(mask)
-            #plt.imshow(mask)
-            #plt.show()
+            # plt.imshow(mask)
+            # plt.show()
         catalog_deblended.append(cat)
-
 
     # Plot scene: rendered model, observations, and residuals
     if plot_scene == True:
-        _plot_scene(starlet_sources, observation, norm, catalog, source_catalog, show_model=False, show_rendered=True,
-                   show_observed=True, show_residual=True, add_labels=add_labels, add_boxes=add_boxes,
-                    add_ellipses=add_ellipses,savefigs=savefigs,figpath=figpath)
+        _plot_scene(
+            starlet_sources,
+            observation,
+            norm,
+            catalog,
+            source_catalog,
+            show_model=False,
+            show_rendered=True,
+            show_observed=True,
+            show_residual=True,
+            add_labels=add_labels,
+            add_boxes=add_boxes,
+            add_ellipses=add_ellipses,
+            savefigs=savefigs,
+            figpath=figpath,
+        )
 
-    
     # Plot each for each source
     if plot_sources == True:
-        scarlet.display.show_sources(starlet_sources, observation, norm=norm,
-                                     show_rendered=True, show_observed=True,
-                                     add_boxes=add_boxes)
+        scarlet.display.show_sources(
+            starlet_sources,
+            observation,
+            norm=norm,
+            show_rendered=True,
+            show_observed=True,
+            add_boxes=add_boxes,
+        )
         if savefigs:
-            plt.savefig(figpath+'sources.png')
+            plt.savefig(figpath + "sources.png")
         plt.show()
-         
+
     return observation, starlet_sources, model_frame, catalog, catalog_deblended, segmentation_masks
-
-
 
 
 def overlapped_slices(bbox1, bbox2):
@@ -757,165 +834,154 @@ def overlapped_slices(bbox1, bbox2):
     return slices
 
 
-def get_processed_hsc_DR3_data(filename,filters=['g','r','i'],dirpath='/home/g4merz/deblend/data/processed_HSC_DR3/lvl5/',
-                              stringcap=14):
+def get_processed_hsc_DR3_data(
+    filename,
+    filters=["g", "r", "i"],
+    dirpath="/home/g4merz/deblend/data/processed_HSC_DR3/lvl5/",
+    stringcap=14,
+):
     """
     Get HSC data given tract/patch info or SkyCoord
-    
+
     Parameters
     ----------
     dirpath : str
         Path to HSC image file directory
-    filters : list 
+    filters : list
         A list of filters for your images. Default is ['g', 'r', 'i'].
     tract  : int
         An integer used for specifying the tract. Default is 10054
     patch : [int, int]
         Patch #,#. Default is [0,0]
     coord  : SkyCoord
-        Astropy SkyCoord, when specified, overrides tract/patch info and attempts to lookup HSC filename from ra, dec. 
+        Astropy SkyCoord, when specified, overrides tract/patch info and attempts to lookup HSC filename from ra, dec.
         Default is None
     cutout_size: [int, int]
         Size of cutout to use (set to None for no cutting). Default is [128, 128]
-        
+
     The image filepath is in the form:
         {dirpath}/deepCoadd/HSC-{filter}/{tract}/{patch[0]},{patch[1]}/calexp-HSC-{filter}-{tract}-{patch[0]},{patch[1]}.fits
-    
+
     Returns
     -------
     data : ndarray
         HSC data array with dimensions [filters, N, N]
     """
 
-    
-    s = filename.split(f'G-')[1].split('.fits')[0]
-    tract, patch,sp = s.split('-')
+    s = filename.split(f"G-")[1].split(".fits")[0]
+    tract, patch, sp = s.split("-")
     tract = int(tract)
-    patch = tuple(map(int, patch.split(',')))
+    patch = tuple(map(int, patch.split(",")))
     sp = int(sp[1:-stringcap])
-    
+
     filters = [f.upper() for f in filters]
-    
-    #if coord is not None:
+
+    # if coord is not None:
     #    print("Overriding tract/patch info and looking for HSC file at requested coordinates.")
     #    tract, patch = get_tract_patch_from_coord(coord)
-        
-    datas = []
-    #models = []
-    #print(dirpath,'dirpath')
-    
-    for f in filters:
 
-        impath = os.path.join(dirpath, f'{f}-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_img.fits')
-        modpath = os.path.join(dirpath, f'{f}-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_model.fits')
-        #print(impath, 'impath')
-        
-        #print(f'Loading "{filepath}".')
+    datas = []
+    # models = []
+    # print(dirpath,'dirpath')
+
+    for f in filters:
+        impath = os.path.join(dirpath, f"{f}-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_img.fits")
+        modpath = os.path.join(dirpath, f"{f}-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_model.fits")
+        # print(impath, 'impath')
+
+        # print(f'Loading "{filepath}".')
         try:
             with fits.open(impath) as obs_hdul:
                 data = obs_hdul[0].data
                 wcs = WCS(obs_hdul[0].header)
-                #fits.close(impath)
-        
-        #mod_hdul = fits.open(modpath)
-        #model = mod_hdul[1].data
-        
+                # fits.close(impath)
+
+            # mod_hdul = fits.open(modpath)
+            # model = mod_hdul[1].data
 
             datas.append(data)
-        #models.append(model)
+        # models.append(model)
 
         except:
-            print('Missing filter ', f)
+            print("Missing filter ", f)
             return None
-    
+
     return np.array(datas)
 
 
-
-
-
-def return_model_objects(fiG,luptonize=False,stringcap=14,dirpath='/home/shared/hsc/HSC/HSC_DR3/data/train/'):
-    
-    
-    s = fiG.split(f'G-')[1].split('.fits')[0]
-    tract, patch,sp = s.split('-')
+def return_model_objects(
+    fiG, luptonize=False, stringcap=14, dirpath="/home/shared/hsc/HSC/HSC_DR3/data/train/"
+):
+    s = fiG.split(f"G-")[1].split(".fits")[0]
+    tract, patch, sp = s.split("-")
     tract = int(tract)
-    patch = tuple(map(int, patch.split(',')))
+    patch = tuple(map(int, patch.split(",")))
     sp = int(sp[1:-stringcap])
-    
-    
-    fiR=dirpath+f'R-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_model.fits'
 
-    fiI=dirpath+f'I-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_model.fits'
+    fiR = dirpath + f"R-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_model.fits"
 
-    
-    
-    
-    d= get_processed_hsc_DR3_data(fiG,dirpath=dirpath,stringcap=stringcap)
+    fiI = dirpath + f"I-{tract}-{patch[0]},{patch[1]}-c{sp}_scarlet_model.fits"
+
+    d = get_processed_hsc_DR3_data(fiG, dirpath=dirpath, stringcap=stringcap)
     fb = scarlet.bbox.Box(d.shape[1:])
 
     model = np.zeros(d.shape)
     with fits.open(fiG) as sourcesG:
         ls = len(sourcesG)
-    
+
     objectsG = []
     objectsR = []
     objectsI = []
 
-    for i,file in enumerate([fiG,fiR,fiI]):
+    for i, file in enumerate([fiG, fiR, fiI]):
         bandmodel = np.zeros(d.shape[1:])
-        l=1+i*(ls-1)
-        u=l+ls-1
+        l = 1 + i * (ls - 1)
+        u = l + ls - 1
         with fits.open(file) as sources:
             sources = fits.open(file)
             for src in sources[l:u]:
                 srcmodel = src.data
-                if i==0:
+                if i == 0:
                     objectsG.append(srcmodel)
-                elif i==1:
+                elif i == 1:
                     objectsR.append(srcmodel)
-                elif i==2:
-                    objectsI.append(srcmodel)            
+                elif i == 2:
+                    objectsI.append(srcmodel)
 
-                bb = src.header['BBOX']
-                bb=bb.split(',')
-                bmin1=int(bb[0])
-                bmin2=int(bb[1])
-                bs1=int(bb[2])
-                bs2=int(bb[3])
+                bb = src.header["BBOX"]
+                bb = bb.split(",")
+                bmin1 = int(bb[0])
+                bmin2 = int(bb[1])
+                bs1 = int(bb[2])
+                bs2 = int(bb[3])
 
-                shape=[bs2,bs1]
-                origin=[bmin2-int(np.floor(bs1/2)),bmin1-int(np.floor(bs2/2))]
-                #print(shape,origin)
+                shape = [bs2, bs1]
+                origin = [bmin2 - int(np.floor(bs1 / 2)), bmin1 - int(np.floor(bs2 / 2))]
+                # print(shape,origin)
 
-                mb = scarlet.bbox.Box(shape,origin)
+                mb = scarlet.bbox.Box(shape, origin)
                 frame_slices, model_slices = overlapped_slices(fb, mb)
                 result = np.zeros(fb.shape)
                 result[frame_slices] = srcmodel[model_slices]
 
-
                 bandmodel += result
-            model[i]=bandmodel
+            model[i] = bandmodel
+
+        # ps=PSNR(d,model,luptonize)
+
+    return objectsG, objectsR, objectsI, model
 
 
-        #ps=PSNR(d,model,luptonize)
-    
-    return objectsG,objectsR,objectsI,model
-    
-  
-        
-def return_spliced_sources(sourceG,sourceR,sourceI):
-    wmin = np.array([sourceG.shape[0],sourceR.shape[0],sourceI.shape[0]]).min()
-    hmin = np.array([sourceG.shape[1],sourceR.shape[1],sourceI.shape[1]]).min()
+def return_spliced_sources(sourceG, sourceR, sourceI):
+    wmin = np.array([sourceG.shape[0], sourceR.shape[0], sourceI.shape[0]]).min()
+    hmin = np.array([sourceG.shape[1], sourceR.shape[1], sourceI.shape[1]]).min()
 
-    sources=[]
-    for source in [sourceG,sourceR,sourceI]:
-        if source.shape[0]>wmin:
-            source = source[(source.shape[0]-wmin)//2:-(source.shape[0]-wmin)//2,:]
-        if source.shape[1]>hmin:
-            source = source[:,(source.shape[1]-hmin)//2:-(source.shape[1]-hmin)//2]
+    sources = []
+    for source in [sourceG, sourceR, sourceI]:
+        if source.shape[0] > wmin:
+            source = source[(source.shape[0] - wmin) // 2 : -(source.shape[0] - wmin) // 2, :]
+        if source.shape[1] > hmin:
+            source = source[:, (source.shape[1] - hmin) // 2 : -(source.shape[1] - hmin) // 2]
         sources.append(source)
 
     return sources
-
-
