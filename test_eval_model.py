@@ -1,8 +1,5 @@
 # Some basic setup:
 
-import sys
-sys.path.append('/home/g4merz/deepdisc/')
-
 # Setup detectron2 logger
 import detectron2
 from detectron2.utils.logger import setup_logger
@@ -60,19 +57,19 @@ import glob
 from pathlib import Path
 import argparse
 
+from deepdisc.data_format.file_io import get_data_from_json
+
+
 '''
-This code will read in a trained model and produce precision/recall by magnitude, 
-and IOU scores for each matched object
+This code will read in a trained model and output the classes for predicted objects matched to the ground truth 
 
 '''
-
-
 
 
 parser = argparse.ArgumentParser()
 
 
-parser.add_argument('--run-name', default='', type=str)
+parser.add_argument('--run-name', default='Swin_test.pth', type=str)
 parser.add_argument('--output-dir', default='/home/shared/hsc/HSC/HSC_DR3/models/withclasses/', type=str)
 parser.add_argument('--savedir', default='/home/shared/hsc/HSC/HSC_DR3/models/withclasses/eval/', type=str)
 parser.add_argument('--norm', default='astrolupton', type=str)
@@ -99,36 +96,10 @@ def get_data_from_json(file):
         data = json.load(f)
     return data
 
-def convert_to_json(dictn, output_file, allow_cached=True):
-    """
-    Converts dataset into COCO format and saves it to a json file.
-    dataset_name must be registered in DatasetCatalog and in detectron2's standard format.
 
-    Args:
-        dataset_name:
-            reference from the config file to the catalogs
-            must be registered in DatasetCatalog and in detectron2's standard format
-        output_file: path of json file that will be saved to
-        allow_cached: if json file is already present then skip conversion
-    """
-      
-    tmp_file = output_file + ".tmp"
-    with PathManager.open(tmp_file, "w") as f:
-        json.dump(dictn, f)
-    shutil.move(tmp_file, output_file)
-
-#trainfile='/home/shared/hsc/HSC/HSC_DR3/data/train_sample_new.json'
 testfile=args.testfile
-#valfile='/home/shared/hsc/HSC/HSC_DR3/data/val_sample_new.json'
+
 classes=["star","galaxy"]
-
-
-
-
-
-DatasetCatalog.register("astro_test", lambda: get_data_from_json(testfile))
-MetadataCatalog.get("astro_test").set(thing_classes=classes)
-
 
 dataset_names = ['test'] 
 datadir='/home/shared/hsc/HSC/HSC_DR3/data/'
@@ -248,8 +219,6 @@ def return_predictor_transformer(cfgfile, run_name, nc=1, output_dir='/home/shar
     cfg.model.proposal_generator.post_nms_topk = [6000,6000]
     cfg.model.proposal_generator.nms_thresh = 0.3
 
-    #cfg.model.rpn.post_nms_topk_train=6000
-    #cfg.model.roi_heads.positive_fraction = 0.33
 
     for box_predictor in cfg.model.roi_heads.box_predictors:
         box_predictor.test_topk_per_image = 1000
@@ -265,15 +234,6 @@ def return_predictor_transformer(cfgfile, run_name, nc=1, output_dir='/home/shar
 
     cfg_loader.TEST.DETECTIONS_PER_IMAGE = 1000
 
-    #Defaults
-    #PRE_NMS_TOPK_TEST: 6000
-    #POST_NMS_TOPK_TEST: 1000
-    #PRE_NMS_TOPK_TRAIN: 12000
-    #POST_NMS_TOPK_TRAIN: 2000
-
-    #cfg.MODEL.RPN.POST_NMS_TOPK_TEST = 6000  
-    #cfg.MODEL.RPN.PRE_NMS_TOPK_TEST = 6000 
-
     cfg_loader.OUTPUT_DIR = output_dir
     
     cfg.train.init_checkpoint = os.path.join(cfg_loader.OUTPUT_DIR, run_name) 
@@ -284,11 +244,11 @@ def return_predictor_transformer(cfgfile, run_name, nc=1, output_dir='/home/shar
     return predictor, cfg
 
 
-def get_matched_objects(dataset_dicts,predictor):
-    all_matched_gts =[]
-    all_matched_dts =[]
-    IOUthresh=0.5
+def get_matched_object_classes(dataset_dicts,predictor):
 
+    IOUthresh=0.5
+    
+    #going to assume we only have one test image
     for dn in dataset_names:
         for d in dataset_dicts[dn]:
             filenames=[d['filename_G'],d['filename_R'],d['filename_I']]
@@ -312,11 +272,16 @@ def get_matched_objects(dataset_dicts,predictor):
                 if IOU>=IOUthresh:
                     matched_gts.append(dt.argmax())
                     matched_dts.append(i) 
+        true_classes =[]
+        pred_classes =[]
+        for gti,dti in zip(matched_gts,matched_dts):
+            true_class = d['annotations'][int(gti)]['category_id']
+            pred_class = outputs['instances'].pred_classes.cpu().detach().numpy()[int(dti)]
+            true_classes.append(true_class)
+            pred_classes.append(pred_class)
+        
 
-            all_matched_gts.append(matched_gts)
-            all_matched_dts.append(matched_dts)
-
-    return all_matched_gts, all_matched_dts
+    return true_classes, pred_classes
 
 
 
@@ -340,7 +305,6 @@ cfglist =['COCO-InstanceSegmentation/mask_rcnn_R_101_C4_3x.yaml',
 
 
 bbs = ['R101C4', 'R101dc5', 'R101fpn', 'X101fpn', 'R50def', 'R50cas', 'Swin','MViTv2']
-centermaskbb=['Centermask']
 
 
 cfgdict={}
@@ -361,14 +325,14 @@ t0=time.time()
 
 
 print('Matching objects')
-matched_gts, matched_dts = get_matched_objects(dataset_dicts,predictor)
-matches = np.array([matched_gts,matched_dts])
+true_classes, pred_classes = get_matched_object_classes(dataset_dicts,predictor)
+classes = np.array([true_classes,pred_classes])
 
-savename =f'{bb}_test_matched.npy'
-np.save(os.path.join(args.savedir,savename),matches)
+savename =f'{bb}_test_matched_classes.npy'
+np.save(os.path.join(args.savedir,savename),classes)
 
 print('Took ', time.time()-t0, ' seconds')
 
-print(matches)
+print(classes)
 
 t0 = time.time()
