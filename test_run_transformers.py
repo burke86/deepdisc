@@ -75,6 +75,8 @@ from detectron2.solver import build_lr_scheduler
 from deepdisc.model.models import return_lazy_model
 from deepdisc.model.loaders import return_train_loader
 from deepdisc.model.loaders import return_test_loader
+from deepdisc.model.trainers import return_lazy_trainer
+
 from deepdisc.data_format.file_io import get_data_from_json
 
 
@@ -197,8 +199,11 @@ def main(train_head,args):
         hookList = [lossHook,schedulerHook,saveHook]
 
 
-        trainer = toolkit.LazyAstroTrainer(model, loader, optimizer, cfg, cfg_loader)
-        trainer.register_hooks(hookList)
+        #trainer = toolkit.LazyAstroTrainer(model, loader, optimizer, cfg, cfg_loader)
+        #trainer.register_hooks(hookList)
+        
+        trainer = return_lazy_trainer(model,loader,optimizer,cfg,cfg_loader,hookList)
+        
         #trainer.set_period(int(epoch/2)) # print loss every n iterations
         #trainer.train(0,e1)
         trainer.set_period(5)
