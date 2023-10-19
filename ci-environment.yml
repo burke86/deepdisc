@@ -1,0 +1,20 @@
+name: deepdisc
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.9
+  - astropy
+  - ipykernel
+  - imgaug
+  - numpy
+  - opencv
+  - pybind11
+  - pytorch
+  - torchvision
+  - pip:
+    - autograd
+    - peigen
+    - proxmin

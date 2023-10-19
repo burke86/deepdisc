@@ -5,7 +5,9 @@
 name: Run pre-commit hooks
 
 on:
-  pull_request:
+  # Disabling until we can figure out inconsistencies in bash behavior
+  # between conda setup and pre-commit itself.
+  # pull_request:
 
 jobs:
   pre-commit-ci:
