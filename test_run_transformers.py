@@ -170,7 +170,7 @@ def main(train_head,args):
     e3=epoch*20
     efinal=epoch*35
     
-    val_per = epoch
+    val_per = 5
 
    
     if train_head:
@@ -241,9 +241,9 @@ Run on multiple machines:
     parser.add_argument("--eval-only", action="store_true", help="perform evaluation only")
     parser.add_argument("--num-gpus", type=int, default=1, help="number of gpus *per machine*")
     parser.add_argument("--num-machines", type=int, default=1, help="total number of machines")
-    parser.add_argument("--run-name", type=str, default='baseline', help="output name for run")
+    parser.add_argument("--run-name", type=str, default='Swin_test', help="output name for run")
     parser.add_argument("--cfgfile", type=str, default='COCO-InstanceSegmentation/mask_rcnn_R_50_C4_3x.yaml', help="path to model config file")
-    parser.add_argument("--norm", type=str, default='lupton', help="contrast scaling")
+    parser.add_argument("--norm", type=str, default='astrolupton', help="contrast scaling")
     parser.add_argument("--data-dir", type=str, default='/home/shared/hsc/HSC/HSC_DR3/data/', help="directory with data")
     parser.add_argument("--output-dir", type=str, default='./', help="output directory to save model")
     parser.add_argument(
@@ -252,13 +252,13 @@ Run on multiple machines:
     parser.add_argument("--cp", type=float, default=99.99, help="ceiling percentile for saturation cutoff")
     parser.add_argument("--scheme", type=int, default=1, help="classification scheme")
     parser.add_argument("--alphas", type=float, nargs='*', help="weights for focal loss")
-    parser.add_argument("--modname", type=str, default='./', help="")
+    parser.add_argument("--modname", type=str, default='swin', help="")
     parser.add_argument("--stretch", type=float, default=0.5, help="lupton stretch")
     parser.add_argument("--Q", type=float, default=10, help="lupton Q")
     parser.add_argument("--A", type=float, default=1e3, help="scaling factor for int16")
     parser.add_argument("--do-norm", action="store_true", help="normalize input image (ignore if lupton)")
     parser.add_argument("--dtype", type=int, default=8, help="data type of array")
-    parser.add_argument("--tl", type=int, help="total size of training set")
+    parser.add_argument("--tl", type=int, default=1, help="total size of training set")
 
     
     # PyTorch still may leave orphan processes in multi-gpu training.
