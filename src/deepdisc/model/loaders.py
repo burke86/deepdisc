@@ -126,6 +126,19 @@ class test_mapper_cls:
 
 
 def return_train_loader(cfg_loader,**kwargs):
+    """Returns a train loader
+
+    Parameters
+    ----------
+    cfg_loader: .yml file
+        The config used for the data loaders
+
+    **kwargs for the read_image functionality
+
+    Returns
+    -------
+        a train loader
+    """
     _train_mapper = train_mapper_cls(**kwargs)
     loader = data.build_detection_train_loader(cfg_loader, mapper=_train_mapper)
     return loader
@@ -133,6 +146,19 @@ def return_train_loader(cfg_loader,**kwargs):
 
 
 def return_test_loader(cfg_loader,**kwargs):
+    """Returns a test loader
+
+    Parameters
+    ----------
+    cfg_loader: .yml file
+        The config used for the data loaders
+
+    **kwargs for the read_image functionality
+
+    Returns
+    -------
+        a test loader
+    """
     _test_mapper = test_mapper_cls(**kwargs)
     test_loader = data.build_detection_test_loader(cfg_loader,cfg_loader.DATASETS.TEST,mapper=_test_mapper)
     return test_loader

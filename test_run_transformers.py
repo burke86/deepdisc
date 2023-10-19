@@ -117,7 +117,6 @@ def main(train_head,args):
     testfile=dirpath+'single_test.json'
 
     
-
     classes=["star", "galaxy"]
     numclasses = len(classes)
         
