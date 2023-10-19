@@ -76,6 +76,9 @@ from deepdisc.model.models import return_lazy_model
 from deepdisc.model.loaders import return_train_loader
 from deepdisc.model.loaders import return_test_loader
 from deepdisc.model.trainers import return_lazy_trainer
+from deepdisc.model.trainers import return_evallosshook
+from deepdisc.model.trainers import return_schedulerhook
+from deepdisc.model.trainers import return_savehook
 
 from deepdisc.data_format.file_io import get_data_from_json
 
@@ -176,7 +179,7 @@ def main(train_head,args):
 
         # Step 1)
         
-        model,cfg = return_lazy_model(cfg)
+        model = return_lazy_model(cfg)
 
         cfg.optimizer.params.model = model
         cfg.optimizer.lr =0.001
@@ -191,21 +194,14 @@ def main(train_head,args):
         dtype=dtype,A=args.A,stretch=args.stretch,Q=args.Q,do_norm=args.do_norm)
         test_loader = return_test_loader(cfg_loader,normalize=args.norm,ceil_percentile=args.cp,
         dtype=dtype,A=args.A,stretch=args.stretch,Q=args.Q,do_norm=args.do_norm)
-        
-        saveHook = detectron_addons.SaveHook()
-        saveHook.set_output_name(output_name)
-        schedulerHook = detectron_addons.CustomLRScheduler(optimizer=optimizer)
-        lossHook = detectron_addons.LossEvalHook(val_per, model, test_loader)
+             
+        saveHook = return_savehook(output_name)
+        lossHook = return_evallosshook(val_per,model,test_loader)
+        schedulerHook = return_schedulerhook(optimizer)
         hookList = [lossHook,schedulerHook,saveHook]
-
-
-        #trainer = toolkit.LazyAstroTrainer(model, loader, optimizer, cfg, cfg_loader)
-        #trainer.register_hooks(hookList)
         
         trainer = return_lazy_trainer(model,loader,optimizer,cfg,cfg_loader,hookList)
-        
-        #trainer.set_period(int(epoch/2)) # print loss every n iterations
-        #trainer.train(0,e1)
+
         trainer.set_period(5)
         trainer.train(0,20)
         if comm.is_main_process():

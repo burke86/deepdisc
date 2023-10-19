@@ -19,4 +19,4 @@ def return_lazy_model(cfg):
     model.to(cfg.train.device)
     model = create_ddp_model(model, **cfg.train.ddp)
 
-    return model, cfg
+    return model
