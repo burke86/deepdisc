@@ -183,7 +183,6 @@ from detectron2.engine.defaults import create_ddp_model
 
 def return_predictor_transformer(cfgfile, run_name, nc=1, output_dir='/home/shared/hsc/HSC/HSC_DR3/models/noclass/', roi_thresh=0.5):
 
-
     '''
     This function returns a trained model and its config file.
     Used for models with lazy config files.  Also assumes a cascade roi head structure
