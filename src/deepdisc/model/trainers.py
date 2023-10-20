@@ -2,6 +2,7 @@ from deepdisc.model import models
 from deepdisc.model import loaders
 from astrodet.astrodet import LazyAstroTrainer
 from astrodet import detectron as detectron_addons
+from detectron2.config import instantiate
 
 
 
@@ -84,3 +85,18 @@ def return_evallosshook(val_per,model,test_loader):
     """
     lossHook = detectron_addons.LossEvalHook(val_per, model, test_loader)
     return lossHook
+
+def return_optimizer(cfg):
+    """Returns an optimizer for training
+
+    Parameters
+    ----------
+    cfg : .py file
+        The LazyConfig used to build the model
+
+    Returns
+    -------
+        a pytorch optimizer
+    """
+    optimizer = instantiate(cfg.optimizer)
+    return optimizer

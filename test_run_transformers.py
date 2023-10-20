@@ -79,6 +79,7 @@ from deepdisc.model.trainers import return_lazy_trainer
 from deepdisc.model.trainers import return_evallosshook
 from deepdisc.model.trainers import return_schedulerhook
 from deepdisc.model.trainers import return_savehook
+from deepdisc.model.trainers import return_optimizer
 
 from deepdisc.data_format.file_io import get_data_from_json
 
@@ -182,12 +183,17 @@ def main(train_head,args):
 
         cfg.optimizer.params.model = model
         cfg.optimizer.lr =0.001
-        optimizer = instantiate(cfg.optimizer)
 
         cfg_loader.SOLVER.STEPS = []          # do not decay learning rate for retraining
         cfg_loader.SOLVER.LR_SCHEDULER_NAME = "WarmupMultiStepLR"
         cfg_loader.SOLVER.WARMUP_ITERS = 0
         cfg_loader.SOLVER.MAX_ITER = e1     # for DefaultTrainer
+
+
+
+        #optimizer = instantiate(cfg.optimizer)
+
+        optimizer = return_optimizer(cfg)
 
         loader = return_train_loader(cfg_loader,normalize=args.norm,ceil_percentile=args.cp,
         dtype=dtype,A=args.A,stretch=args.stretch,Q=args.Q,do_norm=args.do_norm)
