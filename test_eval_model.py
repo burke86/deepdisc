@@ -283,8 +283,6 @@ def get_matched_object_classes(dataset_dicts,predictor):
     return true_classes, pred_classes
 
 
-
-
 output_dir = args.output_dir
 roi_thresh=args.roi_thresh
 run_name=args.run_name
