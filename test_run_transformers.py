@@ -1,8 +1,9 @@
 # Training script for LazyConfig models
 try:
     # ignore ShapelyDeprecationWarning from fvcore
-    from shapely.errors import ShapelyDeprecationWarning
     import warnings
+
+    from shapely.errors import ShapelyDeprecationWarning
     warnings.filterwarnings('ignore', category=ShapelyDeprecationWarning)
 
 except:
@@ -15,73 +16,68 @@ warnings.filterwarnings('ignore', category=UserWarning)
 # Setup detectron2 logger
 import detectron2
 from detectron2.utils.logger import setup_logger
+
 setup_logger()
 
-# import some common libraries
-import numpy as np
-import os, json, cv2, random
 import argparse
-import logging
-import sys
+import copy
 import gc
-
-
-# import some common detectron2 utilities
-from detectron2 import model_zoo
-from detectron2.engine import DefaultPredictor
-from detectron2.config import get_cfg
-from detectron2.utils.visualizer import Visualizer
-from detectron2.data import MetadataCatalog, DatasetCatalog
-from detectron2.data import build_detection_train_loader
-from detectron2.engine import DefaultTrainer
-from detectron2.engine import DefaultTrainer,SimpleTrainer, HookBase, default_argument_parser, default_setup, hooks, launch
+import json
+import logging
+import os
+import random
+import sys
+import time
+import weakref
 from typing import Dict, List, Optional
-import detectron2.solver as solver
-import detectron2.modeling as modeler
+
+import cv2
+import detectron2.checkpoint as checkpointer
 import detectron2.data as data
 import detectron2.data.transforms as T
-import detectron2.checkpoint as checkpointer
-from detectron2.data import detection_utils as utils
+import detectron2.modeling as modeler
+import detectron2.solver as solver
 import detectron2.utils.comm as comm
-
-import weakref
-import copy
+import imgaug.augmenters.blur as blur
+import imgaug.augmenters.flip as flip
+# import some common libraries
+import numpy as np
 import torch
-import time
-
+# import some common detectron2 utilities
+from detectron2 import model_zoo
+from detectron2.config import get_cfg
+from detectron2.data import (DatasetCatalog, MetadataCatalog,
+                             build_detection_train_loader)
+from detectron2.data import detection_utils as utils
+from detectron2.engine import (DefaultPredictor, DefaultTrainer, HookBase,
+                               SimpleTrainer, default_argument_parser,
+                               default_setup, hooks, launch)
+from detectron2.utils.visualizer import Visualizer
 
 from astrodet import astrodet as toolkit
 from astrodet import detectron as detectron_addons
-
-import imgaug.augmenters.flip as flip
-import imgaug.augmenters.blur as blur
-
-
 # Prettify the plotting
 from astrodet.astrodet import set_mpl_style
+
 set_mpl_style()
 
 
-from detectron2.structures import BoxMode
+import glob
+
+from astropy.io import fits
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import LazyConfig, instantiate
 from detectron2.engine.defaults import create_ddp_model
-from astropy.io import fits
-import glob
-from astrodet.detectron import _transform_to_aug
-
 from detectron2.solver import build_lr_scheduler
+from detectron2.structures import BoxMode
 
-from deepdisc.model.models import return_lazy_model
-from deepdisc.model.loaders import return_train_loader
-from deepdisc.model.loaders import return_test_loader
-from deepdisc.model.trainers import return_lazy_trainer
-from deepdisc.model.trainers import return_evallosshook
-from deepdisc.model.trainers import return_schedulerhook
-from deepdisc.model.trainers import return_savehook
-from deepdisc.model.trainers import return_optimizer
-
+from astrodet.detectron import _transform_to_aug
 from deepdisc.data_format.file_io import get_data_from_json
+from deepdisc.model.loaders import return_test_loader, return_train_loader
+from deepdisc.model.models import return_lazy_model
+from deepdisc.model.trainers import (return_evallosshook, return_lazy_trainer,
+                                     return_optimizer, return_savehook,
+                                     return_schedulerhook)
 
 
 def main(train_head,args):
@@ -96,16 +92,16 @@ def main(train_head,args):
     alphas = args.alphas
     modname = args.modname
     if modname =='swin':
-        cfgfile = '/home/g4merz/detectron2/projects/ViTDet/configs/COCO/cascade_mask_rcnn_swin_b_in21k_50ep.py'
-        initwfile= '/home/g4merz/detectron2/projects/ViTDet/model_final_246a82.pkl'
+        cfgfile = '/home/shared/hsc/detectron2/projects/ViTDet/configs/COCO/cascade_mask_rcnn_swin_b_in21k_50ep.py'
+        initwfile= '/home/shared/hsc/detectron2/projects/ViTDet/model_final_246a82.pkl'
     elif modname =='mvitv2':
-        cfgfile = '/home/g4merz/detectron2/projects/ViTDet/configs/COCO/cascade_mask_rcnn_mvitv2_b_in21k_100ep.py'
-        initwfile = '/home/g4merz/detectron2/projects/ViTDet/model_final_8c3da3.pkl'
+        cfgfile = '/home/shared/hsc/detectron2/projects/ViTDet/configs/COCO/cascade_mask_rcnn_mvitv2_b_in21k_100ep.py'
+        initwfile = '/home/shared/hsc/detectron2/projects/ViTDet/model_final_8c3da3.pkl'
 
     elif modname=='vitdet':
-        cfgfile = '/home/g4merz/detectron2/projects/ViTDet/configs/COCO/mask_rcnn_vitdet_b_100ep.py'
+        cfgfile = '/home/shared/hsc/detectron2/projects/ViTDet/configs/COCO/mask_rcnn_vitdet_b_100ep.py'
         #initwfile = '/home/g4merz/deblend/detectron2/projects/ViTDet/model_final_435fa9.pkl'
-        initwfile = '/home/g4merz/detectron2/projects/ViTDet/model_final_61ccd1.pkl'
+        initwfile = '/home/shared/hsc/detectron2/projects/ViTDet/model_final_61ccd1.pkl'
         
     datatype=args.dtype
     if datatype==8:
