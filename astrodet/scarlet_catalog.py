@@ -1,21 +1,20 @@
-import sys, os
-import numpy as np
+import os
+import sys
 import time
-import scarlet
-import sep
-import scarlet.wavelet
 
-from astropy.io import ascii
 import astropy.io.fits as fits
-
 import matplotlib
 import matplotlib.pyplot as plt
-from matplotlib.patches import Ellipse
-
-from astropy.wcs import WCS
-from scipy.stats import median_abs_deviation as mad
+import numpy as np
+import scarlet
+import scarlet.wavelet
+import sep
+from astropy.io import ascii
 from astropy.stats import median_absolute_deviation as astromad
-from astropy.visualization.lupton_rgb import LinearMapping, AsinhMapping
+from astropy.visualization.lupton_rgb import AsinhMapping, LinearMapping
+from astropy.wcs import WCS
+from matplotlib.patches import Ellipse
+from scipy.stats import median_abs_deviation as mad
 
 
 def write_scarlet_results(

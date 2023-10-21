@@ -1,123 +1,105 @@
-import sys, os
-import numpy as np
-from detectron2.engine import DefaultTrainer, DefaultPredictor, SimpleTrainer
-from detectron2.engine.defaults import create_ddp_model
-from typing import Dict, List, Optional, Mapping
-import detectron2.solver as solver
-import detectron2.modeling as modeler
-import detectron2.data as data
-import detectron2.data.transforms as T
-from detectron2.data.transforms import Transform
-from detectron2.data.transforms import Augmentation
-import detectron2.checkpoint as checkpointer
-from detectron2.data import detection_utils as utils
-import weakref
 import copy
-import torch
+import os
+import sys
 import time
+import weakref
+from typing import Dict, List, Mapping, Optional
 
 # Some basic setup:
 # Setup detectron2 logger
 import detectron2
+import detectron2.checkpoint as checkpointer
+import detectron2.data as data
+import detectron2.data.transforms as T
+import detectron2.modeling as modeler
+import detectron2.solver as solver
+import numpy as np
+import torch
+from detectron2.data import detection_utils as utils
+from detectron2.data.transforms import Augmentation, Transform
+from detectron2.engine import DefaultPredictor, DefaultTrainer, SimpleTrainer
+from detectron2.engine.defaults import create_ddp_model
 from detectron2.utils.logger import setup_logger
 
 setup_logger()
-from detectron2.utils.logger import log_every_n_seconds
-from detectron2.utils import comm
-
-# import some common libraries
-import numpy as np
-import os, json, cv2, random
-
-# from google.colab.patches import cv2_imshow
-import matplotlib.pyplot as plt
-
-# import some common detectron2 utilities
-from detectron2 import model_zoo
-from detectron2.config import get_cfg
-from detectron2.utils.visualizer import Visualizer
-from detectron2.data import MetadataCatalog, DatasetCatalog
-
-
 import argparse
-import logging
-import weakref
-from collections import OrderedDict
-from typing import Optional
-import torch
-from fvcore.nn.precise_bn import get_bn_modules
-from omegaconf import OmegaConf
-from torch.nn.parallel import DistributedDataParallel
-
-import detectron2.data.transforms as T
-from detectron2.checkpoint import DetectionCheckpointer
-from detectron2.config import CfgNode, LazyConfig, instantiate
-from detectron2.data import (
-    MetadataCatalog,
-    build_detection_test_loader,
-    build_detection_train_loader,
-)
-from detectron2.evaluation import (
-    DatasetEvaluator,
-    inference_on_dataset,
-    print_csv_format,
-    verify_results,
-)
-from detectron2.modeling import build_model
-from detectron2.solver import build_lr_scheduler, build_optimizer
-from detectron2.utils import comm
-from detectron2.utils.collect_env import collect_env_info
-from detectron2.utils.env import seed_all_rng
-from detectron2.utils.events import CommonMetricPrinter, JSONWriter, TensorboardXWriter
-from detectron2.utils.file_io import PathManager
-from detectron2.utils.logger import setup_logger
-
-from detectron2.utils.events import EventStorage, get_event_storage
-from detectron2.engine.hooks import LRScheduler
-from fvcore.common.param_scheduler import ParamScheduler
-
-
 import contextlib
 import copy
+import datetime
+import gc
+import glob
 import io
 import itertools
 import json
 import logging
-import numpy as np
 import os
 import pickle
+import random
+import shutil
+import weakref
 from collections import OrderedDict
+from typing import Optional
+
+import cv2
+import detectron2.data.transforms as T
+import detectron2.utils.comm as comm
+import imgaug.augmenters as iaa
+import imgaug.augmenters.flip as flip
+
+# from google.colab.patches import cv2_imshow
+import matplotlib.pyplot as plt
+
+# import some common libraries
+import numpy as np
 import pycocotools.mask as mask_util
 import torch
-import datetime
-from pycocotools.coco import COCO
-from pycocotools.cocoeval import COCOeval
-from tabulate import tabulate
-from iopath.common.file_io import file_lock
-import shutil
+from astropy.io import fits
+from astropy.visualization import make_lupton_rgb
 
-import detectron2.utils.comm as comm
+# import some common detectron2 utilities
+from detectron2 import model_zoo
+from detectron2.checkpoint import DetectionCheckpointer
+from detectron2.config import CfgNode, LazyConfig, get_cfg, instantiate
+from detectron2.data import (
+    DatasetCatalog,
+    MetadataCatalog,
+    build_detection_test_loader,
+    build_detection_train_loader,
+)
+from detectron2.data.datasets.coco import convert_to_coco_json
+from detectron2.engine.hooks import LRScheduler
+from detectron2.evaluation import DatasetEvaluator, inference_on_dataset, print_csv_format, verify_results
 
 # yufeng 6/11 import cocoevaluator
 from detectron2.evaluation.coco_evaluation import COCOEvaluator
-from detectron2.config import CfgNode
-from detectron2.data import MetadataCatalog
-from detectron2.data.datasets.coco import convert_to_coco_json
 from detectron2.evaluation.fast_eval_api import COCOeval_opt
-from detectron2.structures import Boxes, BoxMode, pairwise_iou, PolygonMasks, RotatedBoxes
+from detectron2.modeling import build_model
+from detectron2.solver import build_lr_scheduler, build_optimizer
+from detectron2.structures import Boxes, BoxMode, PolygonMasks, RotatedBoxes, pairwise_iou
+from detectron2.utils import comm
+from detectron2.utils.collect_env import collect_env_info
+from detectron2.utils.env import seed_all_rng
+from detectron2.utils.events import (
+    CommonMetricPrinter,
+    EventStorage,
+    JSONWriter,
+    TensorboardXWriter,
+    get_event_storage,
+)
 from detectron2.utils.file_io import PathManager
-from detectron2.utils.logger import create_small_table
-import imgaug.augmenters as iaa
-import imgaug.augmenters.flip as flip
-from . import detectron as detectron_addons
-
-
-from detectron2.structures import BoxMode
-import glob
-from astropy.io import fits
+from detectron2.utils.logger import create_small_table, log_every_n_seconds, setup_logger
+from detectron2.utils.visualizer import Visualizer
+from fvcore.common.param_scheduler import ParamScheduler
+from fvcore.nn.precise_bn import get_bn_modules
+from iopath.common.file_io import file_lock
+from omegaconf import OmegaConf
 from PIL import Image, ImageEnhance
-from astropy.visualization import make_lupton_rgb
-import gc
+from pycocotools.coco import COCO
+from pycocotools.cocoeval import COCOeval
+from tabulate import tabulate
+from torch.nn.parallel import DistributedDataParallel
+
+from . import detectron as detectron_addons
 
 
 def set_mpl_style():

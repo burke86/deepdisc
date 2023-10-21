@@ -1,66 +1,57 @@
-import sys, os
-import numpy as np
-import json
-import cv2
-from astropy.io import fits
-import time
 import datetime
+import json
 import logging
+import os
+import sys
+import time
 
-
+import cv2
 import detectron2
+import numpy as np
+from astropy.io import fits
 from detectron2.utils.logger import setup_logger
 
 setup_logger()
-from detectron2.utils.logger import log_every_n_seconds
-from detectron2.utils import comm
+from typing import Dict, List, Optional, Tuple
 
 import detectron2.data as data
 import detectron2.data.transforms as T
-from detectron2.data.transforms import Transform
-from detectron2.data.transforms import Augmentation
-
-
-from detectron2.data.transforms import Transform
-from detectron2.data.transforms import Augmentation
-from fvcore.transforms.transform import Transform, TransformList
-
-from detectron2.data import build_detection_train_loader
-from detectron2.structures import BoxMode
 
 # Yufeng Dec21 more import
 import matplotlib.pyplot as plt
-from detectron2.utils.visualizer import Visualizer
+import torch
+from detectron2.data import build_detection_train_loader
+from detectron2.data.transforms import Augmentation, Transform
 from detectron2.engine import HookBase
-
+from detectron2.engine.hooks import LRScheduler
+from detectron2.layers import Conv2d, ShapeSpec, cat, get_norm, nonzero_tuple
+from detectron2.modeling import ROI_HEADS_REGISTRY
+from detectron2.modeling.matcher import Matcher
+from detectron2.modeling.poolers import ROIPooler
+from detectron2.modeling.roi_heads import CascadeROIHeads, StandardROIHeads
+from detectron2.structures import Boxes, BoxMode, ImageList, Instances, pairwise_iou
 from detectron2.utils import comm
 from detectron2.utils.collect_env import collect_env_info
 from detectron2.utils.env import seed_all_rng
-from detectron2.utils.events import CommonMetricPrinter, JSONWriter, TensorboardXWriter
+from detectron2.utils.events import (
+    CommonMetricPrinter,
+    EventStorage,
+    JSONWriter,
+    TensorboardXWriter,
+    get_event_storage,
+)
 from detectron2.utils.file_io import PathManager
-from detectron2.utils.logger import setup_logger
-
-from detectron2.utils.events import EventStorage, get_event_storage
-from detectron2.engine.hooks import LRScheduler
+from detectron2.utils.logger import log_every_n_seconds, setup_logger
+from detectron2.utils.visualizer import Visualizer
 from fvcore.common.param_scheduler import ParamScheduler
-import torch
+from fvcore.transforms.transform import Transform, TransformList
 from torch import nn
-from torch.nn import functional as F
-
-from typing import Dict, List, Optional, Tuple
-from detectron2.structures import Boxes, ImageList, Instances, pairwise_iou
-from detectron2.layers import Conv2d, ShapeSpec, get_norm, cat, nonzero_tuple
-from detectron2.modeling import ROI_HEADS_REGISTRY
-from detectron2.modeling.roi_heads import StandardROIHeads
-from detectron2.modeling.poolers import ROIPooler
-from detectron2.modeling.roi_heads import CascadeROIHeads
-from detectron2.modeling.matcher import Matcher
-
-from torch.distributions.independent import Independent
-from torch.distributions.mixture_same_family import MixtureSameFamily
 from torch.distributions.beta import Beta
 from torch.distributions.categorical import Categorical
+from torch.distributions.independent import Independent
+from torch.distributions.mixture_same_family import MixtureSameFamily
 from torch.distributions.normal import Normal
+from torch.nn import functional as F
 
 
 def plot_stretch_Q(
