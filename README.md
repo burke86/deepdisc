@@ -18,7 +18,7 @@ Setup:
 
 conda env create -f environment.yml
 
-You will also need to install scarlet and detectron2. Building from the source is recommended for both
+You will also need to install [scarlet](https://pmelchior.github.io/scarlet/install.html) and [detectron2](https://detectron2.readthedocs.io/en/latest/tutorials/install.html). Building from the source is recommended for both
 
 Usage:
 ```
