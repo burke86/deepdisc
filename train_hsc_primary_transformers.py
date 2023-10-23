@@ -1,8 +1,9 @@
 # Training script for decam data
 try:
     # ignore ShapelyDeprecationWarning from fvcore
-    from shapely.errors import ShapelyDeprecationWarning
     import warnings
+
+    from shapely.errors import ShapelyDeprecationWarning
 
     warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
 
@@ -19,58 +20,56 @@ from detectron2.utils.logger import setup_logger
 
 setup_logger()
 
-# import some common libraries
-import numpy as np
-import os, json, cv2, random
+import copy
+import gc
+import json
 
 # os.environ["PYTORCH_CUDA_ALLOC_CONF"] = "max_split_size_mb:150"
 import logging
+import os
+import random
 import sys
-import gc
+import time
+import weakref
+from typing import Dict, List, Optional
+
+import cv2
+import detectron2.checkpoint as checkpointer
+import detectron2.data as data
+import detectron2.data.transforms as T
+import detectron2.modeling as modeler
+import detectron2.solver as solver
+import detectron2.utils.comm as comm
+import imgaug.augmenters as iaa
+import imgaug.augmenters.blur as blur
+import imgaug.augmenters.flip as flip
 
 # from google.colab.patches import cv2_imshow
 import matplotlib.pyplot as plt
 
+# import some common libraries
+import numpy as np
+import torch
+
 # import some common detectron2 utilities
 from detectron2 import model_zoo
-from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
-from detectron2.utils.visualizer import Visualizer
-from detectron2.data import MetadataCatalog, DatasetCatalog
-from detectron2.data import build_detection_train_loader
-from detectron2.engine import DefaultTrainer
+from detectron2.data import DatasetCatalog, MetadataCatalog, build_detection_train_loader
+from detectron2.data import detection_utils as utils
 from detectron2.engine import (
+    DefaultPredictor,
     DefaultTrainer,
-    SimpleTrainer,
     HookBase,
+    SimpleTrainer,
     default_argument_parser,
     default_setup,
     hooks,
     launch,
 )
-from typing import Dict, List, Optional
-import detectron2.solver as solver
-import detectron2.modeling as modeler
-import detectron2.data as data
-import detectron2.data.transforms as T
-import detectron2.checkpoint as checkpointer
-from detectron2.data import detection_utils as utils
-import detectron2.utils.comm as comm
-
-import weakref
-import copy
-import torch
-import time
-
-import imgaug.augmenters as iaa
+from detectron2.utils.visualizer import Visualizer
 
 from astrodet import astrodet as toolkit
 from astrodet import detectron as detectron_addons
-
-
-import imgaug.augmenters.flip as flip
-import imgaug.augmenters.blur as blur
-
 
 # Prettify the plotting
 from astrodet.astrodet import set_mpl_style
@@ -78,20 +77,20 @@ from astrodet.astrodet import set_mpl_style
 set_mpl_style()
 
 
-from detectron2.structures import BoxMode
+import glob
+
+from astropy.io import fits
+from astropy.visualization import make_lupton_rgb
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import LazyConfig, instantiate
 from detectron2.engine.defaults import create_ddp_model
-from astropy.io import fits
-import glob
-from astrodet.detectron import _transform_to_aug
-
 from detectron2.solver import build_lr_scheduler
-
-from astropy.visualization import make_lupton_rgb
+from detectron2.structures import BoxMode
 from PIL import Image, ImageEnhance
 
+from astrodet.detectron import _transform_to_aug
 from deepdisc.utils.parse_arguments import make_training_arg_parser
+
 
 class LazyAstroTrainer(SimpleTrainer):
     def __init__(self, model, data_loader, optimizer, cfg, cfg_old):

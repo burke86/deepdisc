@@ -41,9 +41,7 @@ Run on multiple machines:
         default="COCO-InstanceSegmentation/mask_rcnn_R_50_C4_3x.yaml",
         help="path to model config file",
     )
-    run_args.add_argument(
-        "--config-file", default="", metavar="FILE", help="path to config file"
-    )
+    run_args.add_argument("--config-file", default="", metavar="FILE", help="path to config file")
     run_args.add_argument(
         "--data-dir",
         type=str,
@@ -51,35 +49,25 @@ Run on multiple machines:
         help="directory with data",
     )
 
-    run_args.add_argument(
-        "--eval-only", action="store_true", help="perform evaluation only"
-    )
+    run_args.add_argument("--eval-only", action="store_true", help="perform evaluation only")
     run_args.add_argument(
         "--from-scratch",
         action="store_true",
         help="use this if you don't want to use pretrained weights",
     )
-    run_args.add_argument(
-        "--output-dir", type=str, default="./", help="output directory to save model"
-    )
+    run_args.add_argument("--output-dir", type=str, default="./", help="output directory to save model")
     run_args.add_argument(
         "--resume",
         action="store_true",
         help="Whether to attempt to resume from the checkpoint directory. "
         "See documentation of `DefaultTrainer.resume_or_load()` for what it means.",
     )
-    run_args.add_argument(
-        "--run-name", type=str, default="Swin_test", help="output name for run"
-    )
+    run_args.add_argument("--run-name", type=str, default="Swin_test", help="output name for run")
 
     # Add arguments for the machine specifications
     machine_args = parser.add_argument_group("Machine arguments")
-    machine_args.add_argument(
-        "--num-gpus", type=int, default=1, help="number of gpus *per machine*"
-    )
-    machine_args.add_argument(
-        "--num-machines", type=int, default=1, help="total number of machines"
-    )
+    machine_args.add_argument("--num-gpus", type=int, default=1, help="number of gpus *per machine*")
+    machine_args.add_argument("--num-machines", type=int, default=1, help="total number of machines")
     machine_args.add_argument(
         "--machine-rank",
         type=int,
@@ -89,12 +77,8 @@ Run on multiple machines:
 
     # Add arguments for the data normalization and modeling.
     model_args = parser.add_argument_group("Model configuration arguments")
-    model_args.add_argument(
-        "--A", type=float, default=1e3, help="scaling factor for int16"
-    )
-    model_args.add_argument(
-        "--alphas", type=float, nargs="*", help="weights for focal loss"
-    )
+    model_args.add_argument("--A", type=float, default=1e3, help="scaling factor for int16")
+    model_args.add_argument("--alphas", type=float, nargs="*", help="weights for focal loss")
     model_args.add_argument(
         "--cp",
         type=float,
@@ -109,17 +93,11 @@ Run on multiple machines:
     )
     model_args.add_argument("--dtype", type=int, default=8, help="data type of array")
     model_args.add_argument("--modname", type=str, default="swin", help="")
-    model_args.add_argument(
-        "--norm", type=str, default="astrolupton", help="contrast scaling"
-    )
+    model_args.add_argument("--norm", type=str, default="astrolupton", help="contrast scaling")
     model_args.add_argument("--Q", type=float, default=10, help="lupton Q")
-    model_args.add_argument(
-        "--scheme", type=int, default=1, help="classification scheme"
-    )
+    model_args.add_argument("--scheme", type=int, default=1, help="classification scheme")
     model_args.add_argument("--stretch", type=float, default=0.5, help="lupton stretch")
-    model_args.add_argument(
-        "--tl", type=int, default=1, help="total size of training set"
-    )
+    model_args.add_argument("--tl", type=int, default=1, help="total size of training set")
 
     # Add a section of advanced arguments.
     adv_args = parser.add_argument_group("Advanced arguments")
@@ -127,11 +105,7 @@ Run on multiple machines:
     # PyTorch still may leave orphan processes in multi-gpu training.
     # Therefore we use a deterministic way to obtain port,
     # so that users are aware of orphan processes by seeing the port occupied.
-    port = (
-        2**15
-        + 2**14
-        + hash(os.getuid() if sys.platform != "win32" else 1) % 2**14
-    )
+    port = 2**15 + 2**14 + hash(os.getuid() if sys.platform != "win32" else 1) % 2**14
     adv_args.add_argument(
         "--dist-url",
         default="tcp://127.0.0.1:{}".format(port),

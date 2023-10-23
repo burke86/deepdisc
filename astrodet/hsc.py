@@ -1,15 +1,15 @@
-import sys, os
-import numpy as np
-import astropy.io.fits as fits
-from astropy.wcs import WCS
+import os
+import sys
 
+import astropy.io.fits as fits
 import matplotlib
 import matplotlib.pyplot as plt
-
+import numpy as np
 from astropy.coordinates import SkyCoord, match_coordinates_sky
 from astropy.nddata import Cutout2D
-from PIL import Image, ImageEnhance
 from astropy.visualization import make_lupton_rgb
+from astropy.wcs import WCS
+from PIL import Image, ImageEnhance
 
 
 def get_tract_patch_from_coord(coord, f="data/hsc/tracts_patches_UD-COSMOS.txt"):

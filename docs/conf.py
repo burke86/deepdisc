@@ -6,9 +6,9 @@
 
 import os
 import sys
+from importlib.metadata import version
 
 import autoapi
-from importlib.metadata import version
 
 # Define path to the code to be documented **relative to where conf.py (this file) is kept**
 sys.path.insert(0, os.path.abspath("../src/"))

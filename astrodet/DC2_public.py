@@ -1,11 +1,12 @@
-from astropy.wcs import WCS
-from astropy.nddata import Cutout2D
-import os
 import glob
-import numpy as np
+import os
+
 import matplotlib.pyplot as plt
+import numpy as np
 import scarlet
 from astropy.io import fits
+from astropy.nddata import Cutout2D
+from astropy.wcs import WCS
 
 
 def get_DC2_data(

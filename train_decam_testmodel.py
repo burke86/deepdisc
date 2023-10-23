@@ -7,66 +7,71 @@ from detectron2.utils.logger import setup_logger
 
 setup_logger()
 
-# import some common libraries
-import numpy as np
-import os, json, cv2, random
+import copy
+import json
 import logging
+import os
+import random
 import sys
+import time
+import weakref
+from typing import Dict, List, Optional
+
+import cv2
+import detectron2.checkpoint as checkpointer
+import detectron2.data as data
+import detectron2.data.transforms as T
+import detectron2.modeling as modeler
+import detectron2.solver as solver
+import detectron2.utils.comm as comm
+import imgaug.augmenters as iaa
+import imgaug.augmenters.blur as blur
+import imgaug.augmenters.flip as flip
 
 # from google.colab.patches import cv2_imshow
 import matplotlib.pyplot as plt
 
+# import some common libraries
+import numpy as np
+import torch
+
 # import some common detectron2 utilities
 from detectron2 import model_zoo
-from detectron2.engine import DefaultPredictor
 from detectron2.config import get_cfg
-from detectron2.utils.visualizer import Visualizer
-from detectron2.data import MetadataCatalog, DatasetCatalog
-from detectron2.data import build_detection_train_loader
-from detectron2.engine import default_argument_parser, default_setup, hooks, launch, SimpleTrainer
-from typing import Dict, List, Optional
-import detectron2.solver as solver
-import detectron2.modeling as modeler
-import detectron2.data as data
-import detectron2.data.transforms as T
-import detectron2.checkpoint as checkpointer
+from detectron2.data import DatasetCatalog, MetadataCatalog, build_detection_train_loader
 from detectron2.data import detection_utils as utils
-import detectron2.utils.comm as comm
-
-import weakref
-import copy
-import torch
-import time
-
-import imgaug.augmenters as iaa
+from detectron2.engine import (
+    DefaultPredictor,
+    SimpleTrainer,
+    default_argument_parser,
+    default_setup,
+    hooks,
+    launch,
+)
+from detectron2.utils.visualizer import Visualizer
 
 from astrodet import astrodet as toolkit
 from astrodet import detectron as detectron_addons
 
-# Custom Aug classes have been added to detectron source files
-from astrodet.detectron import CustomAug
-
-import imgaug.augmenters.flip as flip
-import imgaug.augmenters.blur as blur
-
-
 # Prettify the plotting
 from astrodet.astrodet import set_mpl_style
+
+# Custom Aug classes have been added to detectron source files
+from astrodet.detectron import CustomAug
 
 set_mpl_style()
 
 
-from detectron2.structures import BoxMode
-from astropy.io import fits
+import gc
 import glob
+import warnings
 
+from astropy.io import fits
 from detectron2.checkpoint import DetectionCheckpointer
 from detectron2.config import LazyConfig, instantiate
-from detectron2.engine.defaults import create_ddp_model
 from detectron2.data import MetadataCatalog
-import gc
-
-import warnings
+from detectron2.engine.defaults import create_ddp_model
+from detectron2.structures import BoxMode
 
 from deepdisc.utils.parse_arguments import make_training_arg_parser
 
