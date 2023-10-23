@@ -12,7 +12,6 @@ except:
 warnings.filterwarnings("ignore", category=RuntimeWarning)
 warnings.filterwarnings("ignore", category=UserWarning)
 
-
 # Some basic setup:
 # Setup detectron2 logger
 import detectron2
@@ -62,14 +61,8 @@ from detectron2.engine import (
 )
 from detectron2.utils.visualizer import Visualizer
 
-from astrodet import astrodet as toolkit
-from astrodet import detectron as detectron_addons
-
-# Prettify the plotting
-from astrodet.astrodet import set_mpl_style
-
-set_mpl_style()
-
+#from astrodet import astrodet as toolkit
+#from astrodet import detectron as detectron_addons
 
 import glob
 
@@ -80,11 +73,10 @@ from detectron2.engine.defaults import create_ddp_model
 from detectron2.solver import build_lr_scheduler
 from detectron2.structures import BoxMode
 
-from astrodet.detectron import _transform_to_aug
 from deepdisc.data_format.file_io import get_data_from_json
 from deepdisc.model.loaders import return_test_loader, return_train_loader
 from deepdisc.model.models import return_lazy_model
-from deepdisc.model.trainers import (
+from deepdisc.training.trainers import (
     return_evallosshook,
     return_lazy_trainer,
     return_optimizer,
