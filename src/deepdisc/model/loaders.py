@@ -6,8 +6,8 @@ import numpy as np
 import torch
 from detectron2.data import detection_utils as utils
 
-from astrodet import astrodet as toolkit
-from astrodet import detectron as detectron_addons
+import deepdisc.astrodet.astrodet as toolkit
+import deepdisc.astrodet.detectron as detectron_addons
 
 
 class train_mapper_cls:
@@ -16,7 +16,11 @@ class train_mapper_cls:
 
     def __call__(self, dataset_dict):
         dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-        filenames = [dataset_dict["filename_G"], dataset_dict["filename_R"], dataset_dict["filename_I"]]
+        filenames = [
+            dataset_dict["filename_G"],
+            dataset_dict["filename_R"],
+            dataset_dict["filename_I"],
+        ]
 
         # image = read_image(dataset_dict["file_name"], normalize=args.norm, ceil_percentile=99.99)
         if self.ria["normalize"] != "random":
@@ -58,7 +62,6 @@ class train_mapper_cls:
             k=-1,
             cropaug=T.RandomCrop("relative", (0.5, 0.5)),
         )
-
         # Data Augmentation
         auginput = T.AugInput(image)
         # Transformations to model shapes
@@ -89,7 +92,11 @@ class test_mapper_cls:
 
     def __call__(self, dataset_dict):
         dataset_dict = copy.deepcopy(dataset_dict)  # it will be modified by code below
-        filenames = [dataset_dict["filename_G"], dataset_dict["filename_R"], dataset_dict["filename_I"]]
+        filenames = [
+            dataset_dict["filename_G"],
+            dataset_dict["filename_R"],
+            dataset_dict["filename_I"],
+        ]
 
         if self.ria["normalize"] != "random":
             image = toolkit.read_image_hsc(
@@ -123,7 +130,10 @@ class test_mapper_cls:
         augs = T.AugmentationList(
             [
                 T.CropTransform(
-                    image.shape[1] // 4, image.shape[0] // 4, image.shape[1] // 2, image.shape[0] // 2
+                    image.shape[1] // 4,
+                    image.shape[0] // 4,
+                    image.shape[1] // 2,
+                    image.shape[0] // 2,
                 )
             ]
         )
