@@ -89,6 +89,8 @@ from detectron2.structures import BoxMode
 from PIL import Image, ImageEnhance
 
 from astrodet.detectron import _transform_to_aug
+
+from deepdisc.data_format.register_data import register_data_set
 from deepdisc.utils.parse_arguments import make_training_arg_parser
 
 
@@ -414,18 +416,9 @@ def main(tl, dataset_names, train_head, args):
         classes = ["star", "galaxy"]
     numclasses = len(classes)
 
-    DatasetCatalog.register("astro_train", lambda: get_data_from_json(trainfile))
-    MetadataCatalog.get("astro_train").set(thing_classes=classes)
-    astrotrain_metadata = MetadataCatalog.get("astro_train")  # astro_test dataset needs to exist
-
-    # DatasetCatalog.register("astro_test", lambda: get_data_from_json(testfile))
-    # MetadataCatalog.get("astro_test").set(thing_classes=["star", "galaxy","other"])
-    # astrotest_metadata = MetadataCatalog.get("astro_test") # astro_test dataset needs to exist
-
-    # DatasetCatalog.register("astro_val", lambda: get_data_from_json(valfile))
-    DatasetCatalog.register("astro_val", lambda: get_data_from_json(testfile))
-    MetadataCatalog.get("astro_val").set(thing_classes=classes)
-    astroval_metadata = MetadataCatalog.get("astro_val")  # astro_test dataset needs to exist
+    # Register the data sets and get the metadata.
+    astrotrain_metadata = register_data_set("astro_train", trainfile, thing_classes=classes)
+    astroval_metadata = register_data_set("astro_val", testfile, thing_classes=classes)
 
     # cfg = LazyConfig.load("/home/g4merz/deblend/detectron2/projects/ViTDet/configs/COCO/cascade_mask_rcnn_swin_b_in21k_50ep.py")
     cfg = LazyConfig.load(cfgfile)
