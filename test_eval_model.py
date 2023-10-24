@@ -55,7 +55,6 @@ import deepdisc.astrodet.detectron as detectron_addons
 
 
 logger = logging.getLogger(__name__)
-import argparse
 import glob
 import json
 import shutil
@@ -69,32 +68,14 @@ from detectron2.structures import BoxMode
 from deepdisc.data_format.file_io import get_data_from_json
 from deepdisc.inference.predictors import return_predictor_transformer
 from deepdisc.inference.match_objects import get_matched_object_classes
-
+from deepdisc.utils.parse_arguments import make_inference_arg_parser
 
 '''
 This code will read in a trained model and output the classes for predicted objects matched to the ground truth 
 
 '''
 
-
-parser = argparse.ArgumentParser()
-
-
-parser.add_argument('--run-name', default='Swin_test.pth', type=str)
-parser.add_argument('--output-dir', default='.', type=str)
-parser.add_argument('--savedir', default='.', type=str)
-parser.add_argument('--norm', default='astrolupton', type=str)
-parser.add_argument('--scheme', default=2, type=int)
-parser.add_argument('--datatype', default=8, type=int)
-parser.add_argument('--roi-thresh', default=0.1, type=float)
-parser.add_argument('--testfile', default='/home/shared/hsc/HSC/HSC_DR3/data/single_test.json', type=str)
-parser.add_argument('--nc', default=2, type=int)
-
-args = parser.parse_args()
-
-
-
-
+args = make_inference_arg_parser().parse_args()
 
 output_dir = args.output_dir
 roi_thresh = args.roi_thresh
