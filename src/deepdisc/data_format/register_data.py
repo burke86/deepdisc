@@ -4,7 +4,7 @@ from pathlib import Path
 from deepdisc.data_format.file_io import get_data_from_json
 
 
-def register_data_set(data_set_name, filename, **kwargs):
+def register_data_set(data_set_name, filename, load_func=get_data_from_json, **kwargs):
     """Register the data set and get the MetadataCatalog.
 
     Parameters
@@ -13,6 +13,8 @@ def register_data_set(data_set_name, filename, **kwargs):
         The name of the data set.
     filename: str
         The name of the file.
+    load_func: function
+        The function to use to load the data set. Defaults to get_data_from_json().
     kwargs:
         Additional parameters to pass into the metadata
         set function. Example:
@@ -30,7 +32,7 @@ def register_data_set(data_set_name, filename, **kwargs):
     if not Path(filename).exists():
         raise FileNotFoundError(f"Unable to load data set file {filename}")
 
-    DatasetCatalog.register(data_set_name, lambda: get_data_from_json(filename))
+    DatasetCatalog.register(data_set_name, lambda: load_func(filename))
     MetadataCatalog.get(data_set_name).set(**kwargs)
     meta = MetadataCatalog.get(data_set_name)
 
