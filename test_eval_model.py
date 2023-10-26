@@ -170,7 +170,7 @@ from detectron2.config import LazyConfig, instantiate
 from detectron2.engine.defaults import create_ddp_model
 
 bb=args.run_name.split('_')[0]
-cfgfile='/home/g4merz/deblend/detectron2/projects/ViTDet/configs/COCO/cascade_mask_rcnn_swin_b_in21k_50ep.py'
+cfgfile='./tests/deepdisc/test_data/configs/COCO/cascade_mask_rcnn_swin_b_in21k_50ep.py'
 
 cfg = LazyConfig.load(cfgfile)
 
