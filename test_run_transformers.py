@@ -61,8 +61,8 @@ from detectron2.engine import (
 )
 from detectron2.utils.visualizer import Visualizer
 
-#from astrodet import astrodet as toolkit
-#from astrodet import detectron as detectron_addons
+# from astrodet import astrodet as toolkit
+# from astrodet import detectron as detectron_addons
 
 import glob
 
@@ -74,6 +74,7 @@ from detectron2.solver import build_lr_scheduler
 from detectron2.structures import BoxMode
 
 from deepdisc.data_format.file_io import get_data_from_json
+from deepdisc.data_format.register_data import register_data_set
 from deepdisc.model.loaders import return_test_loader, return_train_loader
 from deepdisc.model.models import return_lazy_model
 from deepdisc.training.trainers import (
@@ -124,13 +125,9 @@ def main(train_head, args):
     classes = ["star", "galaxy"]
     numclasses = len(classes)
 
-    DatasetCatalog.register("astro_train", lambda: get_data_from_json(trainfile))
-    MetadataCatalog.get("astro_train").set(thing_classes=classes)
-    astrotrain_metadata = MetadataCatalog.get("astro_train")  # astro_test dataset needs to exist
-
-    DatasetCatalog.register("astro_val", lambda: get_data_from_json(testfile))
-    MetadataCatalog.get("astro_val").set(thing_classes=classes)
-    astroval_metadata = MetadataCatalog.get("astro_val")  # astro_test dataset needs to exist
+    # Register the data sets and get the metadata.
+    astrotrain_metadata = register_data_set("astro_train", trainfile, thing_classes=classes)
+    astroval_metadata = register_data_set("astro_val", testfile, thing_classes=classes)
 
     cfg = LazyConfig.load(cfgfile)
 

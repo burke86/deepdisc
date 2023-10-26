@@ -83,6 +83,8 @@ from detectron2.structures import BoxMode
 from PIL import Image, ImageEnhance
 
 from astrodet.detectron import _transform_to_aug
+
+from deepdisc.data_format.register_data import register_data_set
 from deepdisc.utils.parse_arguments import make_training_arg_parser
 
 
@@ -300,14 +302,9 @@ def main(tl, train_head, args):
         classes = ["star", "galaxy"]
     numclasses = len(classes)
 
-    DatasetCatalog.register("astro_train", lambda: get_data_from_json(trainfile))
-    MetadataCatalog.get("astro_train").set(thing_classes=classes)
-    astrotrain_metadata = MetadataCatalog.get("astro_train")  # astro_test dataset needs to exist
-
-    # DatasetCatalog.register("astro_val", lambda: get_data_from_json(valfile))
-    DatasetCatalog.register("astro_val", lambda: get_data_from_json(valfile))
-    MetadataCatalog.get("astro_val").set(thing_classes=classes)
-    astroval_metadata = MetadataCatalog.get("astro_val")  # astro_test dataset needs to exist
+    # Register the data sets and get the metadata.
+    astrotrain_metadata = register_data_set("astro_train", trainfile, thing_classes=classes)
+    astroval_metadata = register_data_set("astro_val", testfile, thing_classes=classes)
 
     cfg = get_cfg()
     cfg.merge_from_file(model_zoo.get_config_file(cfgfile))  # Get model structure

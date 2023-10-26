@@ -73,6 +73,7 @@ from detectron2.data import MetadataCatalog
 from detectron2.engine.defaults import create_ddp_model
 from detectron2.structures import BoxMode
 
+from deepdisc.data_format.register_data import register_data_set
 from deepdisc.utils.parse_arguments import make_training_arg_parser
 
 # Get a user warning about some upsampling parameter, just ignoring
@@ -216,13 +217,12 @@ def main(dataset_names, train_head, args):
 
     for i, d in enumerate(dataset_names):
         filenames_dir = os.path.join(dirpath, d)
-        # DatasetCatalog.register("astro_" + d, lambda: get_astro_dicts(filenames_dir))
-        # MetadataCatalog.get("astro_" + d).set(thing_classes=["star", "galaxy"], things_colors = ['blue', 'gray'])
-        DatasetCatalog.register("astro_" + d, lambda: get_data_from_json(filenames_dir + ".json"))
-        MetadataCatalog.get("astro_" + d).set(
-            thing_classes=["star", "galaxy"], things_colors=["blue", "gray"]
+        _ = register_data_set(
+            "astro_" + d,
+            filenames_dir + ".json",
+            thing_classes=["star", "galaxy"],
+            things_colors=["blue", "gray"],
         )
-
     astro_metadata = MetadataCatalog.get("astro_train")
 
     # tl=len(dataset_dicts['train'])
