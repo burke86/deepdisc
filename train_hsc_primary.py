@@ -22,7 +22,6 @@ setup_logger()
 import argparse
 import copy
 import gc
-import json
 import logging
 import os
 import random
@@ -84,15 +83,9 @@ from PIL import Image, ImageEnhance
 
 from astrodet.detectron import _transform_to_aug
 
+from deepdisc.data_format.file_io import get_data_from_json
 from deepdisc.data_format.register_data import register_data_set
 from deepdisc.utils.parse_arguments import make_training_arg_parser
-
-
-def get_data_from_json(file):
-    # Opening JSON file
-    with open(file, "r") as f:
-        data = json.load(f)
-    return data
 
 
 # ### Augment Data
