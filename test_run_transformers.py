@@ -21,7 +21,6 @@ setup_logger()
 
 import copy
 import gc
-import json
 import logging
 import os
 import random
@@ -73,7 +72,6 @@ from detectron2.engine.defaults import create_ddp_model
 from detectron2.solver import build_lr_scheduler
 from detectron2.structures import BoxMode
 
-from deepdisc.data_format.file_io import get_data_from_json
 from deepdisc.data_format.register_data import register_data_set
 from deepdisc.model.loaders import return_test_loader, return_train_loader
 from deepdisc.model.models import return_lazy_model
@@ -100,18 +98,16 @@ def main(train_head, args):
     alphas = args.alphas
     modname = args.modname
     if modname == "swin":
-        cfgfile = (
-            "./tests/deepdisc/test_data/configs/COCO/cascade_mask_rcnn_swin_b_in21k_50ep.py"
-        )
-        #initwfile = "/home/shared/hsc/detectron2/projects/ViTDet/model_final_246a82.pkl"
+        cfgfile = "./tests/deepdisc/test_data/configs/COCO/cascade_mask_rcnn_swin_b_in21k_50ep.py"
+        # initwfile = "/home/shared/hsc/detectron2/projects/ViTDet/model_final_246a82.pkl"
     elif modname == "mvitv2":
         cfgfile = "/home/shared/hsc/detectron2/projects/ViTDet/configs/COCO/cascade_mask_rcnn_mvitv2_b_in21k_100ep.py"
-        #initwfile = "/home/shared/hsc/detectron2/projects/ViTDet/model_final_8c3da3.pkl"
+        # initwfile = "/home/shared/hsc/detectron2/projects/ViTDet/model_final_8c3da3.pkl"
 
     elif modname == "vitdet":
         cfgfile = "/home/shared/hsc/detectron2/projects/ViTDet/configs/COCO/mask_rcnn_vitdet_b_100ep.py"
         # initwfile = '/home/g4merz/deblend/detectron2/projects/ViTDet/model_final_435fa9.pkl'
-        #initwfile = "/home/shared/hsc/detectron2/projects/ViTDet/model_final_61ccd1.pkl"
+        # initwfile = "/home/shared/hsc/detectron2/projects/ViTDet/model_final_61ccd1.pkl"
 
     datatype = args.dtype
     if datatype == 8:
