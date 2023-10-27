@@ -21,6 +21,7 @@ setup_logger()
 
 import copy
 import gc
+import glob
 import logging
 import os
 import random
@@ -42,10 +43,12 @@ import imgaug.augmenters.flip as flip
 # import some common libraries
 import numpy as np
 import torch
+from astropy.io import fits
 
 # import some common detectron2 utilities
 from detectron2 import model_zoo
-from detectron2.config import get_cfg
+from detectron2.checkpoint import DetectionCheckpointer
+from detectron2.config import LazyConfig, get_cfg, instantiate
 from detectron2.data import DatasetCatalog, MetadataCatalog, build_detection_train_loader
 from detectron2.data import detection_utils as utils
 from detectron2.engine import (
@@ -58,29 +61,14 @@ from detectron2.engine import (
     hooks,
     launch,
 )
-from detectron2.utils.visualizer import Visualizer
-
-# from astrodet import astrodet as toolkit
-# from astrodet import detectron as detectron_addons
-
-import glob
-
-from astropy.io import fits
-from detectron2.checkpoint import DetectionCheckpointer
-from detectron2.config import LazyConfig, instantiate
 from detectron2.engine.defaults import create_ddp_model
 from detectron2.solver import build_lr_scheduler
 from detectron2.structures import BoxMode
+from detectron2.utils.visualizer import Visualizer
 
-from deepdisc.data_format.register_data import register_data_set
 from deepdisc.data_format.file_io import ImageReader
-
-from deepdisc.model.loaders import (
-    return_train_loader,
-    train_mapper_cls,
-    return_test_loader,
-    test_mapper_cls,
-)
+from deepdisc.data_format.register_data import register_data_set
+from deepdisc.model.loaders import return_test_loader, return_train_loader, test_mapper_cls, train_mapper_cls
 from deepdisc.model.models import return_lazy_model
 from deepdisc.training.trainers import (
     return_evallosshook,
@@ -90,6 +78,13 @@ from deepdisc.training.trainers import (
     return_schedulerhook,
 )
 from deepdisc.utils.parse_arguments import make_training_arg_parser
+
+# from astrodet import astrodet as toolkit
+# from astrodet import detectron as detectron_addons
+
+
+
+
 
 
 def main(train_head, args):
@@ -192,7 +187,6 @@ def main(train_head, args):
 
         optimizer = return_optimizer(cfg)
 
-
         def hsc_image_reader(filenames):
             g = fits.getdata(os.path.join(filenames[0]), memmap=False)
             length, width = g.shape
@@ -207,20 +201,19 @@ def main(train_head, args):
 
         def hsc_key_mapper(dataset_dict):
             filenames = [
-            dataset_dict["filename_G"],
-            dataset_dict["filename_R"],
-            dataset_dict["filename_I"],
+                dataset_dict["filename_G"],
+                dataset_dict["filename_R"],
+                dataset_dict["filename_I"],
             ]
             return filenames
 
-        IR = ImageReader(hsc_image_reader,norm=args.norm)
-        mapper = train_mapper_cls(IR,hsc_key_mapper)
+        IR = ImageReader(hsc_image_reader, norm=args.norm)
+        mapper = train_mapper_cls(IR, hsc_key_mapper)
         loader = return_train_loader(cfg_loader, mapper)
-        test_mapper = test_mapper_cls(IR,hsc_key_mapper)
+        test_mapper = test_mapper_cls(IR, hsc_key_mapper)
         test_loader = return_test_loader(cfg_loader, test_mapper)
 
-
-        '''
+        """
         loader = return_train_loader(
             cfg_loader,
             normalize=args.norm,
@@ -241,7 +234,7 @@ def main(train_head, args):
             Q=args.Q,
             do_norm=args.do_norm,
         )
-        '''
+        """
 
         saveHook = return_savehook(output_name)
         lossHook = return_evallosshook(val_per, model, test_loader)

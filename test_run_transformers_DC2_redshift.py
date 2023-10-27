@@ -21,6 +21,7 @@ setup_logger()
 
 import copy
 import gc
+import glob
 import logging
 import os
 import random
@@ -42,10 +43,12 @@ import imgaug.augmenters.flip as flip
 # import some common libraries
 import numpy as np
 import torch
+from astropy.io import fits
 
 # import some common detectron2 utilities
 from detectron2 import model_zoo
-from detectron2.config import get_cfg
+from detectron2.checkpoint import DetectionCheckpointer
+from detectron2.config import LazyConfig, get_cfg, instantiate
 from detectron2.data import DatasetCatalog, MetadataCatalog, build_detection_train_loader
 from detectron2.data import detection_utils as utils
 from detectron2.engine import (
@@ -58,32 +61,22 @@ from detectron2.engine import (
     hooks,
     launch,
 )
-from detectron2.utils.visualizer import Visualizer
-
-# from astrodet import astrodet as toolkit
-# from astrodet import detectron as detectron_addons
-
-import glob
-
-from astropy.io import fits
-from detectron2.checkpoint import DetectionCheckpointer
-from detectron2.config import LazyConfig, instantiate
 from detectron2.engine.defaults import create_ddp_model
 from detectron2.solver import build_lr_scheduler
 from detectron2.structures import BoxMode
+from detectron2.utils.visualizer import Visualizer
 
-from deepdisc.data_format.register_data import register_data_set
 from deepdisc.data_format.file_io import ImageReader
-
+from deepdisc.data_format.register_data import register_data_set
 from deepdisc.model.loaders import (
-    return_train_loader,
-    train_mapper_cls,
+    redshift_test_mapper_cls,
     redshift_train_mapper_cls,
     return_test_loader,
+    return_train_loader,
     test_mapper_cls,
-    redshift_test_mapper_cls
+    train_mapper_cls,
 )
-from deepdisc.model.models import return_lazy_model, RedshiftPDFCasROIHeads
+from deepdisc.model.models import RedshiftPDFCasROIHeads, return_lazy_model
 from deepdisc.training.trainers import (
     return_evallosshook,
     return_lazy_trainer,
@@ -92,6 +85,13 @@ from deepdisc.training.trainers import (
     return_schedulerhook,
 )
 from deepdisc.utils.parse_arguments import make_training_arg_parser
+
+# from astrodet import astrodet as toolkit
+# from astrodet import detectron as detectron_addons
+
+
+
+
 
 
 def main(train_head, args):
@@ -143,10 +143,10 @@ def main(train_head, args):
     cfg.dataloader.train.total_batch_size = bs
     cfg.model.roi_heads.num_classes = numclasses
     cfg.model.roi_heads.batch_size_per_image = 512
-    cfg.model.backbone.bottom_up.in_chans=6
+    cfg.model.backbone.bottom_up.in_chans = 6
     cfg.model.pixel_mean = [0.05381286, 0.04986344, 0.07526361, 0.10420945, 0.14229655, 0.21245764]
-    cfg.model.pixel_std = [2.9318833, 1.8443471, 2.581817, 3.5950038, 4.5809164, 7.302009 ]
-    cfg.model.roi_heads.num_components=5
+    cfg.model.pixel_std = [2.9318833, 1.8443471, 2.581817, 3.5950038, 4.5809164, 7.302009]
+    cfg.model.roi_heads.num_components = 5
     cfg.model.roi_heads._target_ = RedshiftPDFCasROIHeads
 
     cfg_loader = get_cfg()
@@ -199,23 +199,22 @@ def main(train_head, args):
 
         optimizer = return_optimizer(cfg)
 
-
         def dc2_image_reader(filename):
-            file = filename.split('/')[-1].split('.')[0]
-            base=os.path.dirname(filename)
-            fn=os.path.join(base,file)+'.npy'
+            file = filename.split("/")[-1].split(".")[0]
+            base = os.path.dirname(filename)
+            fn = os.path.join(base, file) + ".npy"
             image = np.load(fn)
-            image = np.transpose(image,axes=(1,2,0)).astype(np.float32)
+            image = np.transpose(image, axes=(1, 2, 0)).astype(np.float32)
             return image
 
         def dc2_key_mapper(dataset_dict):
-            filename = dataset_dict['filename']
+            filename = dataset_dict["filename"]
             return filename
 
-        IR = ImageReader(dc2_image_reader,norm=args.norm)
-        mapper = redshift_train_mapper_cls(IR,dc2_key_mapper)
+        IR = ImageReader(dc2_image_reader, norm=args.norm)
+        mapper = redshift_train_mapper_cls(IR, dc2_key_mapper)
         loader = return_train_loader(cfg_loader, mapper)
-        test_mapper = redshift_test_mapper_cls(IR,dc2_key_mapper)
+        test_mapper = redshift_test_mapper_cls(IR, dc2_key_mapper)
         test_loader = return_test_loader(cfg_loader, test_mapper)
 
         saveHook = return_savehook(output_name)
