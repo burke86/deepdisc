@@ -119,7 +119,6 @@ def return_train_loader(cfg_loader, mapper):
     -------
         a train loader
     """
-    # _train_mapper = mapper
     loader = data.build_detection_train_loader(cfg_loader, mapper=mapper)
     return loader
 

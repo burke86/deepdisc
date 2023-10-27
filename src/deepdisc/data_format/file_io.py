@@ -25,6 +25,33 @@ def get_data_from_json(file):
 class ImageReader:
     """Class that will read images on the fly for the training/testing dataloaders"""
 
+
+    def __init__(self, reader, norm="raw", **scalekwargs):
+        """
+        Parameters
+        ----------
+        reader : function
+            This function should take a single key and return a single image as a numpy array
+            ex) give a filename or an index in an array
+        norm : str
+            A contrast scaling to apply before data augmentation, i.e. luptonizing or z-score scaling
+            Default = raw
+        **scalekwargs : key word args
+            Key word args for the contrast scaling function
+
+        """
+
+        self.reader = reader
+        self.scalekwargs = scalekwargs
+        self.scaling = ImageReader.norm_dict[norm]
+
+    def __call__(self, key):
+        im = self.reader(key)
+        im_scale = self.scaling(im, **self.scalekwargs)
+        return im_scale
+
+
+
     def raw(im):
         return im.astype(np.float32)
 
@@ -42,6 +69,11 @@ class ImageReader:
             lupton Q parameter
         m: float
             lupton minimum parameter
+
+        
+        Returns
+        -------
+             the 3-channel image after lupton scaling using astropy make_lupton_rgb
 
         """
 
@@ -62,6 +94,10 @@ class ImageReader:
         A : float
             A multiplicative scaling factor applied to each band
 
+        Returns
+        -------
+            image after z-score scaling (subtract mean and divide by std deviation)
+
         """
 
         I = np.mean(im, axis=-1)
@@ -73,32 +109,9 @@ class ImageReader:
 
         return image
 
+    #This dict is created to map an input string to a scaling function
     norm_dict = {"raw": raw, "lupton": lupton}
-
-    def __init__(self, reader, norm="raw", **scalekwargs):
-        """
-        Parameters
-        ----------
-        reader : function
-            This function should take a single key and return a single image as a numpy array
-            ex) give a filename or an index in an array
-        norm : str
-            A contrast scaling to apply before data augmentation, i.e. luptonizing or z-score scaling
-            Default = raw
-        **scalekwargs : key word args
-            Key word args for the contrast scaling function
-
-        """
-
-        self.reader = reader
-
-        self.scalekwargs = scalekwargs
-        self.scaling = ImageReader.norm_dict[norm]
-
-    def __call__(self, key):
-        im = self.reader(key)
-        im_scale = self.scaling(im, **self.scalekwargs)
-        return im_scale
+    
 
     @classmethod
     def add_scaling(cls, name, func):

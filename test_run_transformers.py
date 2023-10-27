@@ -186,7 +186,7 @@ def main(train_head, args):
         # optimizer = instantiate(cfg.optimizer)
 
         optimizer = return_optimizer(cfg)
-
+        #image_reader function takes a key and uses it to load a raw image
         def hsc_image_reader(filenames):
             g = fits.getdata(os.path.join(filenames[0]), memmap=False)
             length, width = g.shape
@@ -199,6 +199,7 @@ def main(train_head, args):
             image[:, :, 2] = g
             return image
 
+        #key_mapper function should take a dataset_dict as input and output a key used by the image_reader function
         def hsc_key_mapper(dataset_dict):
             filenames = [
                 dataset_dict["filename_G"],
