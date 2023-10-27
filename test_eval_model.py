@@ -68,7 +68,7 @@ from detectron2.structures import BoxMode
 from deepdisc.data_format.file_io import get_data_from_json
 from deepdisc.inference.predictors import return_predictor_transformer
 from deepdisc.inference.match_objects import get_matched_object_classes
-from deepdisc.utils.parse_arguments import make_inference_arg_parser
+from deepdisc.utils.parse_arguments import dtype_from_args, make_inference_arg_parser
 
 '''
 This code will read in a trained model and output the classes for predicted objects matched to the ground truth 
@@ -212,14 +212,7 @@ cfg.train.init_checkpoint = os.path.join(cfg_loader.OUTPUT_DIR, run_name)
 output_dir = args.output_dir
 roi_thresh=args.roi_thresh
 run_name=args.run_name
-dt = args.datatype
-if dt==16:
-    dtype=np.int16
-elif dt==8:
-    dtype = np.uint8
-
-
-    
+dtype=dtype_from_args(args.datatype)
 
 if bb in ['Swin','MViTv2']:
     predictor= return_predictor_transformer(cfg,cfg_loader)
