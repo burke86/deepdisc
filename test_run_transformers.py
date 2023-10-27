@@ -213,29 +213,6 @@ def main(train_head, args):
         test_mapper = test_mapper_cls(IR, hsc_key_mapper)
         test_loader = return_test_loader(cfg_loader, test_mapper)
 
-        """
-        loader = return_train_loader(
-            cfg_loader,
-            normalize=args.norm,
-            ceil_percentile=args.cp,
-            dtype=dtype,
-            A=args.A,
-            stretch=args.stretch,
-            Q=args.Q,
-            do_norm=args.do_norm,
-        )
-        test_loader = return_test_loader(
-            cfg_loader,
-            normalize=args.norm,
-            ceil_percentile=args.cp,
-            dtype=dtype,
-            A=args.A,
-            stretch=args.stretch,
-            Q=args.Q,
-            do_norm=args.do_norm,
-        )
-        """
-
         saveHook = return_savehook(output_name)
         lossHook = return_evallosshook(val_per, model, test_loader)
         schedulerHook = return_schedulerhook(optimizer)
