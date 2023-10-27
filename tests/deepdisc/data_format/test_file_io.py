@@ -3,8 +3,6 @@ import pytest
 
 from deepdisc.data_format.file_io import get_data_from_json
 
-from utils_for_tests.data_paths import get_test_hsc_data_path
-
 
 def test_get_data_from_json(tmp_path):
     """Write a little test file and make sure we can read it back."""
@@ -18,12 +16,11 @@ def test_get_data_from_json(tmp_path):
     assert data_dict == expected_dict
 
 
-def test_get_data_from_json_hsc():
+def test_get_data_from_json_hsc(hsc_single_test_file):
     """Test that we can parse the test HSC data."""
-    filename = get_test_hsc_data_path("single_test.json")
-    data_dict = get_data_from_json(filename)
+    data_dict = get_data_from_json(filename=hsc_single_test_file)
     assert len(data_dict) > 0
 
-    error_filename = get_test_hsc_data_path("file_does_not_exist.json")
+    error_filename = "./file_does_not_exist.json"
     with pytest.raises(Exception):
         _ = get_data_from_json(error_filename)
