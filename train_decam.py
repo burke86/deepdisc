@@ -9,7 +9,6 @@ setup_logger()
 
 import argparse
 import copy
-import json
 import logging
 import os
 import random
@@ -63,13 +62,6 @@ from detectron2.structures import BoxMode
 
 from deepdisc.data_format.register_data import register_data_set
 from deepdisc.utils.parse_arguments import make_training_arg_parser
-
-
-def get_data_from_json(file):
-    # Opening JSON file
-    with open(file, "r") as f:
-        data = json.load(f)
-    return data
 
 
 def main(dataset_names, train_head, args):
