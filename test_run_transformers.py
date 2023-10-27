@@ -73,7 +73,14 @@ from detectron2.solver import build_lr_scheduler
 from detectron2.structures import BoxMode
 
 from deepdisc.data_format.register_data import register_data_set
-from deepdisc.model.loaders import return_test_loader, return_train_loader
+from deepdisc.data_format.file_io import ImageReader
+
+from deepdisc.model.loaders import (
+    return_train_loader,
+    train_mapper_cls,
+    return_test_loader,
+    test_mapper_cls,
+)
 from deepdisc.model.models import return_lazy_model
 from deepdisc.training.trainers import (
     return_evallosshook,
@@ -185,6 +192,35 @@ def main(train_head, args):
 
         optimizer = return_optimizer(cfg)
 
+
+        def hsc_image_reader(filenames):
+            g = fits.getdata(os.path.join(filenames[0]), memmap=False)
+            length, width = g.shape
+            image = np.empty([length, width, 3])
+            r = fits.getdata(os.path.join(filenames[1]), memmap=False)
+            i = fits.getdata(os.path.join(filenames[2]), memmap=False)
+
+            image[:, :, 0] = i
+            image[:, :, 1] = r
+            image[:, :, 2] = g
+            return image
+
+        def hsc_key_mapper(dataset_dict):
+            filenames = [
+            dataset_dict["filename_G"],
+            dataset_dict["filename_R"],
+            dataset_dict["filename_I"],
+            ]
+            return filenames
+
+        IR = ImageReader(hsc_image_reader,norm=args.norm)
+        mapper = train_mapper_cls(IR,hsc_key_mapper)
+        loader = return_train_loader(cfg_loader, mapper)
+        test_mapper = test_mapper_cls(IR,hsc_key_mapper)
+        test_loader = return_test_loader(cfg_loader, test_mapper)
+
+
+        '''
         loader = return_train_loader(
             cfg_loader,
             normalize=args.norm,
@@ -205,6 +241,7 @@ def main(train_head, args):
             Q=args.Q,
             do_norm=args.do_norm,
         )
+        '''
 
         saveHook = return_savehook(output_name)
         lossHook = return_evallosshook(val_per, model, test_loader)

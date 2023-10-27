@@ -23,7 +23,7 @@ def return_predictor_transformer(cfg, cfg_loader):
     return predictor
 
 
-def get_predictions(dataset_dict, predictor, **kwargs):
+def get_predictions(dataset_dict, imreader, key_mapper, predictor, **kwargs):
     """Returns indices for matched pairs of ground truth and detected objects in an image
 
     Parameters
@@ -41,12 +41,7 @@ def get_predictions(dataset_dict, predictor, **kwargs):
             The list of detected object Instances
     """
 
-    # We will want to make this handle other image readers eventually
-    filenames = [
-        dataset_dict["filename_G"],
-        dataset_dict["filename_R"],
-        dataset_dict["filename_I"],
-    ]
-    img = toolkit.read_image_hsc(filenames, **kwargs)
+    key = key_mapper(dataset_dict)
+    img = imreader(key)
     outputs = predictor(img)
     return outputs

@@ -2,6 +2,7 @@ import argparse
 import os
 import sys
 
+
 def make_inference_arg_parser():
     """Create the parser for DeepDisc inference, including common arguments used by
     detectron2 users.
@@ -13,17 +14,18 @@ def make_inference_arg_parser():
     """
     parser = argparse.ArgumentParser()
 
-    parser.add_argument('--datatype', default=8, type=int)
-    parser.add_argument('--nc', default=2, type=int)
-    parser.add_argument('--norm', default='astrolupton', type=str, help="contrast scaling")
-    parser.add_argument('--output-dir', default='.', type=str)
-    parser.add_argument('--roi-thresh', default=0.1, type=float)
-    parser.add_argument('--run-name', default='Swin_test.pth', type=str)
-    parser.add_argument('--savedir', default='.', type=str)
-    parser.add_argument('--scheme', default=2, type=int, help="classification scheme")
-    parser.add_argument('--testfile', default='/home/shared/hsc/HSC/HSC_DR3/data/single_test.json', type=str)
+    parser.add_argument("--datatype", default=8, type=int)
+    parser.add_argument("--nc", default=2, type=int)
+    parser.add_argument("--norm", default="raw", type=str, help="contrast scaling")
+    parser.add_argument("--output-dir", default=".", type=str)
+    parser.add_argument("--roi-thresh", default=0.1, type=float)
+    parser.add_argument("--run-name", default="Swin_test.pth", type=str)
+    parser.add_argument("--savedir", default=".", type=str)
+    parser.add_argument("--scheme", default=2, type=int, help="classification scheme")
+    parser.add_argument("--testfile", default="/home/shared/hsc/HSC/HSC_DR3/data/single_test.json", type=str)
 
     return parser
+
 
 def make_training_arg_parser(epilog=None):
     """Create the parser for DeepDisc training, including common arguments used by
@@ -115,7 +117,7 @@ Run on multiple machines:
     )
     model_args.add_argument("--dtype", type=int, default=8, help="data type of array")
     model_args.add_argument("--modname", type=str, default="swin", help="")
-    model_args.add_argument("--norm", type=str, default="astrolupton", help="contrast scaling")
+    model_args.add_argument("--norm", type=str, default="raw", help="contrast scaling")
     model_args.add_argument("--Q", type=float, default=10, help="lupton Q")
     model_args.add_argument("--scheme", type=int, default=1, help="classification scheme")
     model_args.add_argument("--stretch", type=float, default=0.5, help="lupton stretch")

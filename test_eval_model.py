@@ -69,6 +69,7 @@ from deepdisc.data_format.file_io import get_data_from_json
 from deepdisc.inference.predictors import return_predictor_transformer
 from deepdisc.inference.match_objects import get_matched_object_classes
 from deepdisc.utils.parse_arguments import make_inference_arg_parser
+from deepdisc.data_format.file_io import ImageReader
 
 '''
 This code will read in a trained model and output the classes for predicted objects matched to the ground truth 
@@ -219,19 +220,42 @@ elif dt==8:
     dtype = np.uint8
 
 
-    
 
 if bb in ['Swin','MViTv2']:
     predictor= return_predictor_transformer(cfg,cfg_loader)
 else:
     predictor,cfg = return_predictor(cfgfile, run_name,output_dir=output_dir,nc=2,roi_thresh=roi_thresh)
 
+
+def hsc_image_reader(filenames):
+    g = fits.getdata(os.path.join(filenames[0]), memmap=False)
+    length, width = g.shape
+    image = np.empty([length, width, 3])
+    r = fits.getdata(os.path.join(filenames[1]), memmap=False)
+    i = fits.getdata(os.path.join(filenames[2]), memmap=False)
+
+    image[:, :, 0] = i
+    image[:, :, 1] = r
+    image[:, :, 2] = g
+    return image
+
+def hsc_key_mapper(dataset_dict):
+    filenames = [
+    dataset_dict["filename_G"],
+    dataset_dict["filename_R"],
+    dataset_dict["filename_I"],
+    ]
+    return filenames
+
+IR = ImageReader(hsc_image_reader,norm=args.norm)
+
+
 t0=time.time()
 
 
 
 print('Matching objects')
-true_classes, pred_classes = get_matched_object_classes(dataset_dicts['test'],predictor)
+true_classes, pred_classes = get_matched_object_classes(dataset_dicts['test'],IR,hsc_key_mapper,predictor)
 classes = np.array([true_classes,pred_classes])
 
 savename =f'{bb}_test_matched_classes.npy'
