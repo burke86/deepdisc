@@ -73,7 +73,7 @@ from detectron2.engine.defaults import create_ddp_model
 from detectron2.structures import BoxMode
 
 from deepdisc.data_format.register_data import register_data_set
-from deepdisc.utils.parse_arguments import make_training_arg_parser
+from deepdisc.utils.parse_arguments import dtype_from_args, make_training_arg_parser
 
 # Get a user warning about some upsampling parameter, just ignoring
 warnings.filterwarnings("ignore", category=UserWarning)
@@ -182,11 +182,7 @@ def main(dataset_names, train_head, args):
     output_name = args.run_name
     cfgfile = args.cfgfile
     dirpath = args.data_dir  # Path to dataset
-    datatype = args.dtype
-    if datatype == 8:
-        dtype = np.uint8
-    elif datatype == 16:
-        dtype = np.int16
+    dtype = dtype_from_args(args.dtype)
 
     modname = args.modname
     if modname == "swin":

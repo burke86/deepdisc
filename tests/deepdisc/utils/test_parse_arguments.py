@@ -1,7 +1,12 @@
 import argparse
+import numpy as np
 import pytest
 
-from deepdisc.utils.parse_arguments import make_inference_arg_parser, make_training_arg_parser
+from deepdisc.utils.parse_arguments import (
+    dtype_from_args,
+    make_inference_arg_parser,
+    make_training_arg_parser,
+)
 
 
 def test_make_inference_arg_parser():
@@ -50,3 +55,15 @@ def test_make_training_arg_parser():
     assert args.scheme == 1
     assert args.stretch == 0.5
     assert args.tl == 1
+
+
+def test_dtype_from_args():
+    assert dtype_from_args(8) is np.uint8
+    assert dtype_from_args(16) is np.int16
+    assert dtype_from_args(32) is np.float32
+    assert dtype_from_args() is np.float32
+
+    with pytest.raises(ValueError):
+        _ = dtype_from_args(4)
+    with pytest.raises(ValueError):
+        _ = dtype_from_args(64)
