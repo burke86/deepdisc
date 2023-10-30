@@ -30,8 +30,8 @@ def get_predictions(dataset_dict, imreader, key_mapper, predictor):
     ----------
     dataset_dict : dictionary
         The dictionary metadata for a single image
-    imreader: ImageReader class
-        The ImageReader used to load in images
+    imreader: ImageReader object
+        An object derived from ImageReader base class to read the images.
     key_mapper: function
         The key_mapper should take a dataset_dict as input and return the key used by imreader
     predictor: AstroPredictor

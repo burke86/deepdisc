@@ -58,7 +58,8 @@ from astropy.io import fits
 from detectron2 import structures
 from detectron2.structures import BoxMode
 
-from deepdisc.data_format.file_io import ImageReader, get_data_from_json
+from deepdisc.data_format.file_io import get_data_from_json
+from deepdisc.data_format.image_readers import DC2ImageReader
 from deepdisc.inference.match_objects import get_matched_object_classes, get_matched_z_pdfs
 from deepdisc.inference.predictors import return_predictor_transformer
 from deepdisc.model.models import RedshiftPDFCasROIHeads
@@ -228,22 +229,11 @@ if bb in ["Swin", "MViTv2"]:
 else:
     predictor, cfg = return_predictor(cfgfile, run_name, output_dir=output_dir, nc=2, roi_thresh=roi_thresh)
 
-
-def dc2_image_reader(filename):
-    file = filename.split("/")[-1].split(".")[0]
-    base = os.path.dirname(filename)
-    fn = os.path.join(base, file) + ".npy"
-    image = np.load(fn)
-    image = np.transpose(image, axes=(1, 2, 0)).astype(np.float32)
-    return image
-
-
 def dc2_key_mapper(dataset_dict):
     filename = dataset_dict["filename"]
     return filename
 
-
-IR = ImageReader(dc2_image_reader, norm=args.norm)
+IR = DC2ImageReader(norm=args.norm)
 
 
 t0 = time.time()

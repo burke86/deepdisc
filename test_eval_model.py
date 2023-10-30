@@ -58,7 +58,8 @@ from astropy.io import fits
 from detectron2 import structures
 from detectron2.structures import BoxMode
 
-from deepdisc.data_format.file_io import ImageReader, get_data_from_json
+from deepdisc.data_format.file_io import get_data_from_json
+from deepdisc.data_format.image_readers import HSCImageReader
 from deepdisc.inference.match_objects import get_matched_object_classes
 from deepdisc.inference.predictors import return_predictor_transformer
 from deepdisc.utils.parse_arguments import dtype_from_args, make_inference_arg_parser
@@ -218,19 +219,6 @@ else:
     predictor, cfg = return_predictor(cfgfile, run_name, output_dir=output_dir, nc=2, roi_thresh=roi_thresh)
 
 
-def hsc_image_reader(filenames):
-    g = fits.getdata(os.path.join(filenames[0]), memmap=False)
-    length, width = g.shape
-    image = np.empty([length, width, 3])
-    r = fits.getdata(os.path.join(filenames[1]), memmap=False)
-    i = fits.getdata(os.path.join(filenames[2]), memmap=False)
-
-    image[:, :, 0] = i
-    image[:, :, 1] = r
-    image[:, :, 2] = g
-    return image
-
-
 def hsc_key_mapper(dataset_dict):
     filenames = [
         dataset_dict["filename_G"],
@@ -240,7 +228,7 @@ def hsc_key_mapper(dataset_dict):
     return filenames
 
 
-IR = ImageReader(hsc_image_reader, norm=args.norm)
+IR = HSCImageReader(norm=args.norm)
 
 
 t0 = time.time()
