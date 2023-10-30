@@ -8,7 +8,6 @@ from detectron2.utils.logger import setup_logger
 setup_logger()
 
 import copy
-import json
 import logging
 import os
 import random
@@ -78,13 +77,6 @@ from deepdisc.utils.parse_arguments import dtype_from_args, make_training_arg_pa
 
 # Get a user warning about some upsampling parameter, just ignoring
 warnings.filterwarnings("ignore", category=UserWarning)
-
-
-def get_data_from_json(file):
-    # Opening JSON file
-    with open(file, "r") as f:
-        data = json.load(f)
-    return data
 
 
 from detectron2.solver import build_lr_scheduler
