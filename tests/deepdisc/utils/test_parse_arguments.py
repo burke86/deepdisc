@@ -16,7 +16,7 @@ def test_make_inference_arg_parser():
     # Check all parameters are included and the default values are expected.
     assert args.datatype == 8
     assert args.nc == 2
-    assert args.norm == "astrolupton"
+    assert args.norm == "raw"
     assert args.output_dir == "."
     assert args.roi_thresh == 0.1
     assert type(args.run_name) is str and len(args.run_name) > 0
@@ -50,7 +50,7 @@ def test_make_training_arg_parser():
     assert not args.do_norm
     assert args.dtype == 8
     assert args.modname == "swin"
-    assert args.norm == "astrolupton"
+    assert args.norm == "raw"
     assert args.Q == 10
     assert args.scheme == 1
     assert args.stretch == 0.5
