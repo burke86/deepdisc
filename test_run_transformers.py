@@ -66,7 +66,7 @@ from detectron2.solver import build_lr_scheduler
 from detectron2.structures import BoxMode
 from detectron2.utils.visualizer import Visualizer
 
-from deepdisc.data_format.file_io import ImageReader
+from deepdisc.data_format.image_readers import HSCImageReader
 from deepdisc.data_format.register_data import register_data_set
 from deepdisc.model.loaders import return_test_loader, return_train_loader, test_mapper_cls, train_mapper_cls
 from deepdisc.model.models import return_lazy_model
@@ -181,18 +181,6 @@ def main(train_head, args):
         # optimizer = instantiate(cfg.optimizer)
 
         optimizer = return_optimizer(cfg)
-        #image_reader function takes a key and uses it to load a raw image
-        def hsc_image_reader(filenames):
-            g = fits.getdata(os.path.join(filenames[0]), memmap=False)
-            length, width = g.shape
-            image = np.empty([length, width, 3])
-            r = fits.getdata(os.path.join(filenames[1]), memmap=False)
-            i = fits.getdata(os.path.join(filenames[2]), memmap=False)
-
-            image[:, :, 0] = i
-            image[:, :, 1] = r
-            image[:, :, 2] = g
-            return image
 
         #key_mapper function should take a dataset_dict as input and output a key used by the image_reader function
         def hsc_key_mapper(dataset_dict):
@@ -203,7 +191,7 @@ def main(train_head, args):
             ]
             return filenames
 
-        IR = ImageReader(hsc_image_reader, norm=args.norm)
+        IR = HSCImageReader(norm=args.norm)
         mapper = train_mapper_cls(IR, hsc_key_mapper)
         loader = return_train_loader(cfg_loader, mapper)
         test_mapper = test_mapper_cls(IR, hsc_key_mapper)

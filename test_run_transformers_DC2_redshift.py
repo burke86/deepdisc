@@ -66,7 +66,7 @@ from detectron2.solver import build_lr_scheduler
 from detectron2.structures import BoxMode
 from detectron2.utils.visualizer import Visualizer
 
-from deepdisc.data_format.file_io import ImageReader
+from deepdisc.data_format.image_readers import DC2ImageReader
 from deepdisc.data_format.register_data import register_data_set
 from deepdisc.model.loaders import (
     redshift_test_mapper_cls,
@@ -199,19 +199,11 @@ def main(train_head, args):
 
         optimizer = return_optimizer(cfg)
 
-        def dc2_image_reader(filename):
-            file = filename.split("/")[-1].split(".")[0]
-            base = os.path.dirname(filename)
-            fn = os.path.join(base, file) + ".npy"
-            image = np.load(fn)
-            image = np.transpose(image, axes=(1, 2, 0)).astype(np.float32)
-            return image
-
         def dc2_key_mapper(dataset_dict):
             filename = dataset_dict["filename"]
             return filename
 
-        IR = ImageReader(dc2_image_reader, norm=args.norm)
+        IR = DC2ImageReader(norm=args.norm)
         mapper = redshift_train_mapper_cls(IR, dc2_key_mapper)
         loader = return_train_loader(cfg_loader, mapper)
         test_mapper = redshift_test_mapper_cls(IR, dc2_key_mapper)
