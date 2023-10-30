@@ -1,4 +1,5 @@
 import argparse
+import numpy as np
 import os
 import sys
 
@@ -148,3 +149,29 @@ For python-based LazyConfig, use "path.key=value".
     )
 
     return parser
+
+
+def dtype_from_args(dt=32):
+    """Returns the dtype corresponding to the dtype argument string.
+
+    Parameters
+    ----------
+    dt: int
+        The integer representing the number of bytes to use.
+        8 = uint8
+        16 = int16
+        32 = float32 (default)
+
+    Returns
+    -------
+    type
+        The dtype to use.
+    """
+    if dt == 32:
+        return np.float32
+    elif dt == 16:
+        return np.int16
+    elif dt == 8:
+        return np.uint8
+    else:
+        raise ValueError("Unknown dtype argument {dt}.")

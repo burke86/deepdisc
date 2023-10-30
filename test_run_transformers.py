@@ -77,7 +77,7 @@ from deepdisc.training.trainers import (
     return_savehook,
     return_schedulerhook,
 )
-from deepdisc.utils.parse_arguments import make_training_arg_parser
+from deepdisc.utils.parse_arguments import dtype_from_args, make_training_arg_parser
 
 # from astrodet import astrodet as toolkit
 # from astrodet import detectron as detectron_addons
@@ -111,12 +111,7 @@ def main(train_head, args):
         # initwfile = '/home/g4merz/deblend/detectron2/projects/ViTDet/model_final_435fa9.pkl'
         # initwfile = "/home/shared/hsc/detectron2/projects/ViTDet/model_final_61ccd1.pkl"
 
-    datatype = args.dtype
-    if datatype == 8:
-        dtype = np.uint8
-    elif datatype == 16:
-        dtype = np.int16
-
+    dtype = dtype_from_args(args.dtype)
     trainfile = dirpath + "single_test.json"
     testfile = dirpath + "single_test.json"
 

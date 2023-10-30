@@ -85,7 +85,7 @@ from astrodet.detectron import _transform_to_aug
 
 from deepdisc.data_format.file_io import get_data_from_json
 from deepdisc.data_format.register_data import register_data_set
-from deepdisc.utils.parse_arguments import make_training_arg_parser
+from deepdisc.utils.parse_arguments import dtype_from_args, make_training_arg_parser
 
 
 # ### Augment Data
@@ -272,11 +272,8 @@ def main(tl, train_head, args):
     dirpath = args.data_dir  # Path to dataset
     scheme = args.scheme
     alphas = args.alphas
-    datatype = args.dtype
-    if datatype == 8:
-        dtype = np.uint8
-    elif datatype == 16:
-        dtype = np.int16
+    dtype = dtype_from_args(args.dtype)
+
     # ### Prepare For Training
     # Training logic:
     # To replicate 2019 methodology, need to
