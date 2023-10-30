@@ -21,6 +21,7 @@ setup_logger()
 
 import copy
 import gc
+import glob
 import logging
 import os
 import random
@@ -42,10 +43,12 @@ import imgaug.augmenters.flip as flip
 # import some common libraries
 import numpy as np
 import torch
+from astropy.io import fits
 
 # import some common detectron2 utilities
 from detectron2 import model_zoo
-from detectron2.config import get_cfg
+from detectron2.checkpoint import DetectionCheckpointer
+from detectron2.config import LazyConfig, get_cfg, instantiate
 from detectron2.data import DatasetCatalog, MetadataCatalog, build_detection_train_loader
 from detectron2.data import detection_utils as utils
 from detectron2.engine import (
@@ -58,22 +61,14 @@ from detectron2.engine import (
     hooks,
     launch,
 )
-from detectron2.utils.visualizer import Visualizer
-
-# from astrodet import astrodet as toolkit
-# from astrodet import detectron as detectron_addons
-
-import glob
-
-from astropy.io import fits
-from detectron2.checkpoint import DetectionCheckpointer
-from detectron2.config import LazyConfig, instantiate
 from detectron2.engine.defaults import create_ddp_model
 from detectron2.solver import build_lr_scheduler
 from detectron2.structures import BoxMode
+from detectron2.utils.visualizer import Visualizer
 
+from deepdisc.data_format.file_io import ImageReader
 from deepdisc.data_format.register_data import register_data_set
-from deepdisc.model.loaders import return_test_loader, return_train_loader
+from deepdisc.model.loaders import return_test_loader, return_train_loader, test_mapper_cls, train_mapper_cls
 from deepdisc.model.models import return_lazy_model
 from deepdisc.training.trainers import (
     return_evallosshook,
@@ -83,6 +78,13 @@ from deepdisc.training.trainers import (
     return_schedulerhook,
 )
 from deepdisc.utils.parse_arguments import dtype_from_args, make_training_arg_parser
+
+# from astrodet import astrodet as toolkit
+# from astrodet import detectron as detectron_addons
+
+
+
+
 
 
 def main(train_head, args):
@@ -179,27 +181,33 @@ def main(train_head, args):
         # optimizer = instantiate(cfg.optimizer)
 
         optimizer = return_optimizer(cfg)
+        #image_reader function takes a key and uses it to load a raw image
+        def hsc_image_reader(filenames):
+            g = fits.getdata(os.path.join(filenames[0]), memmap=False)
+            length, width = g.shape
+            image = np.empty([length, width, 3])
+            r = fits.getdata(os.path.join(filenames[1]), memmap=False)
+            i = fits.getdata(os.path.join(filenames[2]), memmap=False)
 
-        loader = return_train_loader(
-            cfg_loader,
-            normalize=args.norm,
-            ceil_percentile=args.cp,
-            dtype=dtype,
-            A=args.A,
-            stretch=args.stretch,
-            Q=args.Q,
-            do_norm=args.do_norm,
-        )
-        test_loader = return_test_loader(
-            cfg_loader,
-            normalize=args.norm,
-            ceil_percentile=args.cp,
-            dtype=dtype,
-            A=args.A,
-            stretch=args.stretch,
-            Q=args.Q,
-            do_norm=args.do_norm,
-        )
+            image[:, :, 0] = i
+            image[:, :, 1] = r
+            image[:, :, 2] = g
+            return image
+
+        #key_mapper function should take a dataset_dict as input and output a key used by the image_reader function
+        def hsc_key_mapper(dataset_dict):
+            filenames = [
+                dataset_dict["filename_G"],
+                dataset_dict["filename_R"],
+                dataset_dict["filename_I"],
+            ]
+            return filenames
+
+        IR = ImageReader(hsc_image_reader, norm=args.norm)
+        mapper = train_mapper_cls(IR, hsc_key_mapper)
+        loader = return_train_loader(cfg_loader, mapper)
+        test_mapper = test_mapper_cls(IR, hsc_key_mapper)
+        test_loader = return_test_loader(cfg_loader, test_mapper)
 
         saveHook = return_savehook(output_name)
         lossHook = return_evallosshook(val_per, model, test_loader)

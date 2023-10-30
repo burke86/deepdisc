@@ -1,5 +1,6 @@
-from detectron2.data import DatasetCatalog, MetadataCatalog
 from pathlib import Path
+
+from detectron2.data import DatasetCatalog, MetadataCatalog
 
 from deepdisc.data_format.file_io import get_data_from_json
 

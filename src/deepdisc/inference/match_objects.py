@@ -50,13 +50,13 @@ def get_matched_object_inds(dataset_dict, outputs):
     return matched_gts, matched_dts
 
 
-def get_matched_object_classes(dataset_dicts, predictor, **kwargs):
+def get_matched_object_classes(dataset_dicts, imreader, key_mapper, predictor):
     IOUthresh = 0.5
 
-    # going to assume we only have one test image
+    # going to assume we only have one test image right now
 
     for d in dataset_dicts:
-        outputs = get_predictions(d, predictor, **kwargs)
+        outputs = get_predictions(d, imreader, key_mapper, predictor)
         matched_gts, matched_dts = get_matched_object_inds(d, outputs)
     true_classes = []
     pred_classes = []
@@ -67,3 +67,24 @@ def get_matched_object_classes(dataset_dicts, predictor, **kwargs):
         pred_classes.append(pred_class)
 
     return true_classes, pred_classes
+
+
+def get_matched_z_pdfs(dataset_dicts, imreader, key_mapper, predictor):
+    IOUthresh = 0.5
+    zs = np.linspace(-1, 5.0, 200)
+
+    ztrues = []
+    zpreds = []
+
+    for d in dataset_dicts:
+        outputs = get_predictions(d, imreader, key_mapper, predictor)
+        matched_gts, matched_dts = get_matched_object_inds(d, outputs)
+
+        for gti, dti in zip(matched_gts, matched_dts):
+            ztrue = d["annotations"][int(gti)]["redshift"]
+            pdf = np.exp(outputs["instances"].pred_redshift_pdf[int(dti)].cpu().numpy())
+
+            ztrues.append(ztrue)
+            zpreds.append(pdf)
+
+    return ztrues, zpreds
