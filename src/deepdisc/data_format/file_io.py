@@ -1,9 +1,118 @@
 import json
 from pathlib import Path
-
+import glob
+from astropy.io import fits
+import os
+import cv2
 import numpy as np
+from detectron2.structures import BoxMode
 from astropy.visualization import make_lupton_rgb
 
+
+class DataLoader:
+    """A base data loader class"""
+    def __init__(self):
+        self.dataset_dicts = None
+
+    def read_fits(self, img_dir):
+        """Read metadata from a fits file, generates a top-level dictionary"""
+
+        # It's weird to call this img_dir
+        set_dirs = sorted(glob.glob("%s/set_*" % img_dir))
+
+        dataset_dicts = []
+
+        # Loop through each set
+        for idx, set_dir in enumerate(set_dirs):
+            record = {}
+
+            mask_dir = os.path.join(img_dir, set_dir, "masks.fits")
+            filename = os.path.join(img_dir, set_dir, "img")
+
+            # Open each FITS image
+            with fits.open(mask_dir, memmap=False, lazy_load_hdus=False) as hdul:
+                sources = len(hdul)
+                height, width = hdul[0].data.shape
+                data = [hdu.data / np.max(hdu.data) for hdu in hdul]
+                category_ids = [hdu.header["CLASS_ID"] for hdu in hdul]
+
+            record["file_name"] = filename
+            record["image_id"] = idx
+            record["height"] = height
+            record["width"] = width
+            objs = []
+
+            # Mask value thresholds per category_id
+            thresh = [0.005 if i == 1 else 0.08 for i in category_ids]
+
+            # Generate segmentation masks
+            for i in range(sources):
+                image = data[i]
+                mask = np.zeros([height, width], dtype=np.uint8)
+                # Create mask from threshold
+                mask[:, :][image > thresh[i]] = 1
+                # Smooth mask
+                mask[:, :] = cv2.GaussianBlur(mask[:, :], (9, 9), 2)
+
+                # https://github.com/facebookresearch/Detectron/issues/100
+                contours, hierarchy = cv2.findContours(
+                    (mask).astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
+                )
+                segmentation = []
+                for contour in contours:
+                    x, y, w, h = cv2.boundingRect(contour)
+                    contour = contour.flatten().tolist()
+                    # segmentation.append(contour)
+                    if len(contour) > 4:
+                        segmentation.append(contour)
+                # No valid countors
+                if len(segmentation) == 0:
+                    continue
+
+                # Add to dict
+                obj = {
+                    "bbox": [x, y, w, h],
+                    "area": w * h,
+                    "bbox_mode": BoxMode.XYWH_ABS,
+                    "segmentation": segmentation,
+                    "category_id": category_ids[i] - 1,
+                }
+                objs.append(obj)
+
+            record["annotations"] = objs
+            dataset_dicts.append(record)
+
+        self.dataset_dicts = dataset_dicts
+        return self
+
+
+    def to_coco_format(self):
+        """transforms"""
+        pass
+
+    def custom_loader(self, loader_func, **kwargs):
+        """passes along a custom loader"""
+        self.datadict = loader_func(**kwargs)
+        return self
+
+    def load_coco_json_file(self, file):
+        """Open a JSON text file, and return encoded data as dictionary.
+
+        Assumes JSON data is in the COCO format.
+
+        Parameters
+        ----------
+        file : str
+            pointer to file
+
+        Returns
+        -------
+            dictionary of encoded data
+        """
+        # Opening JSON file
+        with open(file, "r", encoding="utf-8") as f:
+            data = json.load(f)
+        return data
 
 def get_data_from_json(filename):
     """Open a JSON text file, and return encoded data as dictionary.
