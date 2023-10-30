@@ -33,7 +33,6 @@ def get_data_from_json(filename):
 class ImageReader:
     """Class that will read images on the fly for the training/testing dataloaders"""
 
-
     def __init__(self, reader, norm="raw", **scalekwargs):
         """
         Parameters
@@ -46,25 +45,46 @@ class ImageReader:
             Default = raw
         **scalekwargs : key word args
             Key word args for the contrast scaling function
-
         """
-
         self.reader = reader
         self.scalekwargs = scalekwargs
         self.scaling = ImageReader.norm_dict[norm]
 
     def __call__(self, key):
+        """Read the image and apply scaling.
+
+        Parameters
+        ----------
+        key : str or int
+            The key indicating the image to read.
+
+        Returns
+        -------
+        im : numpy array
+            The image.
+        """
         im = self.reader(key)
         im_scale = self.scaling(im, **self.scalekwargs)
         return im_scale
 
-
-
     def raw(im):
+        """Apply raw image scaling (no scaling done).
+
+        Parameters
+        ----------
+        im : numpy array
+            The image.
+
+        Returns
+        -------
+        numpy array
+            The image with pixels as float32.
+        """
         return im.astype(np.float32)
 
     def lupton(im, bandlist=[2, 1, 0], stretch=0.5, Q=10, m=0):
-        """
+        """Apply Lupton scaling to the image and return the scaled image.
+
         Parameters
         ----------
         im : np array
@@ -78,13 +98,11 @@ class ImageReader:
         m: float
             lupton minimum parameter
 
-        
         Returns
         -------
-             the 3-channel image after lupton scaling using astropy make_lupton_rgb
-
+        image : numpy array
+            The 3-channel image after lupton scaling using astropy make_lupton_rgb
         """
-
         assert np.array(im.shape).argmin() == 2 and len(bandlist) == 3
         b1 = im[:, :, bandlist[0]]
         b2 = im[:, :, bandlist[1]]
@@ -94,7 +112,8 @@ class ImageReader:
         return image
 
     def zscore(im, A=1):
-        """
+        """Apply z-score scaling to the image and return the scaled image.
+
         Parameters
         ----------
         im : np array
@@ -104,10 +123,9 @@ class ImageReader:
 
         Returns
         -------
-            image after z-score scaling (subtract mean and divide by std deviation)
-
+        image : numpy array
+            The image after z-score scaling (subtract mean and divide by std deviation)
         """
-
         I = np.mean(im, axis=-1)
         Imean = np.nanmean(I)
         Isigma = np.nanstd(I)
@@ -119,7 +137,6 @@ class ImageReader:
 
     #This dict is created to map an input string to a scaling function
     norm_dict = {"raw": raw, "lupton": lupton}
-    
 
     @classmethod
     def add_scaling(cls, name, func):
@@ -133,7 +150,5 @@ class ImageReader:
             return image
 
         ImageReader.add_scaling('sqrt',sqrt)
-
-
         """
         cls.norm_dict[name] = func
