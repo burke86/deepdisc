@@ -60,8 +60,10 @@ def test_make_training_arg_parser():
 def test_dtype_from_args():
     assert dtype_from_args(8) is np.uint8
     assert dtype_from_args(16) is np.int16
+    assert dtype_from_args(32) is np.float32
+    assert dtype_from_args() is np.float32
 
     with pytest.raises(ValueError):
         _ = dtype_from_args(4)
     with pytest.raises(ValueError):
-        _ = dtype_from_args(32)  # Do we want to support this too?
+        _ = dtype_from_args(64)
