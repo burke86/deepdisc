@@ -11,7 +11,7 @@ from deepdisc.utils.parse_arguments import (
 
 def test_make_inference_arg_parser():
     parser = make_inference_arg_parser()
-    args = parser.parse_args()
+    args = parser.parse_known_args()[0]
 
     # Check all parameters are included and the default values are expected.
     assert args.datatype == 8
@@ -27,7 +27,7 @@ def test_make_inference_arg_parser():
 
 def test_make_training_arg_parser():
     parser = make_training_arg_parser()
-    args = parser.parse_args()
+    args = parser.parse_known_args()[0]
 
     # Check all parameters are included and the default values are expected.
     assert type(args.cfgfile) is str and len(args.cfgfile) > 0
