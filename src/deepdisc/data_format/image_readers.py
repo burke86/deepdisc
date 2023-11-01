@@ -1,10 +1,9 @@
 import abc
 import os
-
 import numpy as np
+
 from astropy.io import fits
 from astropy.visualization import make_lupton_rgb
-
 
 class ImageReader(abc.ABC):
     """Base class that will read images on the fly for the training/testing dataloaders
@@ -42,7 +41,7 @@ class ImageReader(abc.ABC):
             The image.
         """
         pass
-
+        
     def __call__(self, key):
         """Read the image and apply scaling.
 
@@ -128,7 +127,7 @@ class ImageReader(abc.ABC):
 
         return image
 
-    # This dict is created to map an input string to a scaling function
+    #This dict is created to map an input string to a scaling function
     norm_dict = {"raw": raw, "lupton": lupton}
 
     @classmethod
@@ -208,3 +207,4 @@ class HSCImageReader(ImageReader):
         image[:, :, 1] = r
         image[:, :, 2] = g
         return image
+    
