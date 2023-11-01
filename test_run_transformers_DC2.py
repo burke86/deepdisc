@@ -30,18 +30,12 @@ import torch
 
 # import some common detectron2 utilities
 from detectron2.config import LazyConfig, get_cfg
-from detectron2.engine import (
-    launch,
-)
+from detectron2.engine import launch
 
+from deepdisc.data_format.augment_image import train_augs
 from deepdisc.data_format.image_readers import DC2ImageReader
 from deepdisc.data_format.register_data import register_data_set
-from deepdisc.model.loaders import (
-    redshift_test_mapper_cls,
-    redshift_train_mapper_cls,
-    return_test_loader,
-    return_train_loader,
-)
+from deepdisc.model.loaders import DictMapper, return_test_loader, return_train_loader
 from deepdisc.model.models import return_lazy_model
 from deepdisc.training.trainers import (
     return_evallosshook,
@@ -54,10 +48,6 @@ from deepdisc.utils.parse_arguments import make_training_arg_parser
 
 # from astrodet import astrodet as toolkit
 # from astrodet import detectron as detectron_addons
-
-
-
-
 
 
 def main(train_head, args):
@@ -170,9 +160,9 @@ def main(train_head, args):
             return filename
 
         IR = DC2ImageReader(norm=args.norm)
-        mapper = redshift_train_mapper_cls(IR, dc2_key_mapper)
+        mapper = DictMapper(IR, dc2_key_mapper, train_augs)
         loader = return_train_loader(cfg_loader, mapper)
-        test_mapper = redshift_test_mapper_cls(IR, dc2_key_mapper)
+        test_mapper = DictMapper(IR, dc2_key_mapper)
         test_loader = return_test_loader(cfg_loader, test_mapper)
 
         saveHook = return_savehook(output_name)
