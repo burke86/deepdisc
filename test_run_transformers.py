@@ -30,13 +30,12 @@ import torch
 
 # import some common detectron2 utilities
 from detectron2.config import LazyConfig, get_cfg
-from detectron2.engine import (
-    launch,
-)
+from detectron2.engine import launch
 
+from deepdisc.data_format.augment_image import hsc_test_augs, train_augs
 from deepdisc.data_format.image_readers import HSCImageReader
 from deepdisc.data_format.register_data import register_data_set
-from deepdisc.model.loaders import return_test_loader, return_train_loader, test_mapper_cls, train_mapper_cls
+from deepdisc.model.loaders import DictMapper, return_test_loader, return_train_loader
 from deepdisc.model.models import return_lazy_model
 from deepdisc.training.trainers import (
     return_evallosshook,
@@ -46,7 +45,6 @@ from deepdisc.training.trainers import (
     return_schedulerhook,
 )
 from deepdisc.utils.parse_arguments import dtype_from_args, make_training_arg_parser
-
 
 
 def main(train_head, args):
@@ -144,7 +142,7 @@ def main(train_head, args):
 
         optimizer = return_optimizer(cfg)
 
-        #key_mapper function should take a dataset_dict as input and output a key used by the image_reader function
+        # key_mapper function should take a dataset_dict as input and output a key used by the image_reader function
         def hsc_key_mapper(dataset_dict):
             filenames = [
                 dataset_dict["filename_G"],
@@ -154,9 +152,9 @@ def main(train_head, args):
             return filenames
 
         IR = HSCImageReader(norm=args.norm)
-        mapper = train_mapper_cls(IR, hsc_key_mapper)
+        mapper = DictMapper(IR, hsc_key_mapper, train_augs).map_data
         loader = return_train_loader(cfg_loader, mapper)
-        test_mapper = test_mapper_cls(IR, hsc_key_mapper)
+        test_mapper = DictMapper(IR, hsc_key_mapper, hsc_test_augs).map_data
         test_loader = return_test_loader(cfg_loader, test_mapper)
 
         saveHook = return_savehook(output_name)

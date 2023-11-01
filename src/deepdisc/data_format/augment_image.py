@@ -1,7 +1,10 @@
 """Utilities for augmenting image data."""
 
+import detectron2.data.transforms as T
 import imgaug.augmenters as iaa
 import numpy as np
+
+import deepdisc.astrodet.detectron as detectron_addons
 
 
 def gaussblur(image, rng_seed=None):
@@ -96,3 +99,31 @@ def centercrop(image):
     wc = (w - w // 2) // 2
     image = image[hc : hc + h // 2, wc : wc + w // 2]
     return image
+
+
+def train_augs(image):
+    augs = detectron_addons.KRandomAugmentationList(
+        [
+            # my custom augs
+            T.RandomRotation([-90, 90, 180], sample_style="choice"),
+            T.RandomFlip(prob=0.5),
+            T.RandomFlip(prob=0.5, horizontal=False, vertical=True),
+        ],
+        k=-1,
+        cropaug=T.RandomCrop("relative", (0.5, 0.5)),
+    )
+    return augs
+
+
+def hsc_test_augs(image):
+    augs = T.AugmentationList(
+        [
+            T.CropTransform(
+                image.shape[1] // 4,
+                image.shape[0] // 4,
+                image.shape[1] // 2,
+                image.shape[0] // 2,
+            )
+        ]
+    )
+    return augs
