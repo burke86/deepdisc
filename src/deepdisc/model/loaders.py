@@ -15,7 +15,7 @@ class DataMapper:
 
     To implement a data mapper for a new class, the derived class needs to have an
     __init__() function that calls super().__init__(*args, **kwargs)
-    and a custom version of _format().
+    and a custom version of map_data().
     """
 
     def __init__(self, imreader=None, key_mapper=None, augmentations=None):
@@ -29,6 +29,9 @@ class DataMapper:
             The function that takes the data set and returns the key that will be used to load the image.
             If the image is stored with the dataset, this is not needed
             Default = None
+        augmentations : detectron2 AugmentationList or a detectron_addons.KRandomAugmentationList
+            The list of augmentations to apply to the image
+            Default = None
         """
         self.IR = imreader
         self.km = key_mapper
@@ -39,14 +42,27 @@ class DataMapper:
 
 
 class DictMapper(DataMapper):
+    """Class that will map COCO dictionary data to the format necessary for the model"""
+
     def __init__(self, *args, **kwargs):
         # Pass arguments to the parent function.
         super().__init__(*args, **kwargs)
 
     def map_data(self, dataset_dict):
+        """Map COCO dict data to the correct format
+
+        Parameters
+        ----------
+        dataset_dict: dict
+            a dictionary of COCO formatted metadata
+
+        Returns
+        -------
+        reformatted dictionary including image and instances
+        """
+
         dataset_dict = copy.deepcopy(dataset_dict)
         key = self.km(dataset_dict)
-
         image = self.IR(key)
 
         # Data Augmentation
@@ -83,6 +99,18 @@ class RedshiftDictMapper(DataMapper):
         super().__init__(*args, **kwargs)
 
     def map_data(self, dataset_dict):
+        """Map COCO dict data to the correct format, add ground truth redhshift
+
+        Parameters
+        ----------
+        dataset_dict: dict
+            a dictionary of COCO formatted metadata
+
+        Returns
+        -------
+        reformatted dictionary including image and instances+redshift
+        """
+
         dataset_dict = copy.deepcopy(dataset_dict)
         key = self.km(dataset_dict)
         image = self.IR(key)
@@ -127,6 +155,18 @@ class RedshiftFlatDictMapper(DataMapper):
         super().__init__(*args, **kwargs)
 
     def map_data(self, row):
+        """Map flattened tabular data to the correct format
+
+        Parameters
+        ----------
+        row: np.array
+            A row from a flattened array of data
+
+        Returns
+        -------
+        reformatted dictionary including image and instances+redshift (no segmask)
+        """
+
         image = row[0:98304].reshape(128, 128, 6).astype(np.float32)
 
         dataset_dict = {}

@@ -102,6 +102,19 @@ def centercrop(image):
 
 
 def train_augs(image):
+    """Get the augmentation list
+
+    Parameters
+    ----------
+    image: image
+        The image to be augmented
+
+    Returns
+    -------
+    augs: detectron_addons.KRandomAugmentationList
+        The list of augs for training.  Set to RandomRotation, RandomFlip, RandomCrop
+    """
+
     augs = detectron_addons.KRandomAugmentationList(
         [
             # my custom augs
@@ -116,6 +129,18 @@ def train_augs(image):
 
 
 def hsc_test_augs(image):
+    """Get the augmentation list
+
+    Parameters
+    ----------
+    image: image
+        The image to be augmented
+
+    Returns
+    -------
+    augs: detectron2 AugmentationList
+        The augs for hsc testing.  Set to 50% Crop due to memory constraints
+    """
     augs = T.AugmentationList(
         [
             T.CropTransform(
