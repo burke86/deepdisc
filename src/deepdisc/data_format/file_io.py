@@ -14,11 +14,11 @@ class DataLoader:
 
     def __init__(self):
         self.filedict = None
-        self.dataset_dicts = None
+        self.dataset = None
 
-    def get_dataset_dicts(self):
+    def get_dataset(self):
         """retrieves the list of dataset_dicts if established."""
-        return self.dataset_dicts
+        return self.dataset
 
     def generate_filedict(
         self, dirpath, filters, img_files, mask_files, subdirs=False, filt_loc=0, n_samples=None
@@ -127,7 +127,7 @@ class DataLoader:
             # Add records to the data_dict
             dataset_dicts.append(record)
 
-        self.dataset_dicts = dataset_dicts
+        self.dataset = dataset_dicts
         return self
 
     def load_coco_json_file(self, file):
@@ -148,7 +148,7 @@ class DataLoader:
         with open(file, "r", encoding="utf-8") as f:
             data = json.load(f)
 
-        self.dataset_dicts = data
+        self.dataset = data
         return self
 
 
