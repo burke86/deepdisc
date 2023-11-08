@@ -87,7 +87,7 @@ class DataLoader:
 
         return self
 
-    def generate_dataset_dict(self, func, filedict=None, **kwargs):
+    def generate_dataset_dict(self, func, filedict=None, filters=True, **kwargs):
         """Generates a list of dictionaries using a user-defined annotation
         generator function on each image file/mask. The format is determined
         by the user defined function
@@ -122,7 +122,12 @@ class DataLoader:
 
         # Use user-provided function to generate a dictionary record per image set
         for images, mask in zip(img_files, filedict["mask"]):
-            record = func(images, mask, **kwargs)
+
+            # pass along filter list if requested
+            if filters:
+                record = func(images, mask, filedict['filters'], **kwargs)
+            else:
+                record = func(images, mask, **kwargs)
 
             # Add records to the data_dict
             dataset_dicts.append(record)
