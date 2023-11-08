@@ -1,6 +1,7 @@
 import json
 from pathlib import Path
 
+
 def get_data_from_json(filename):
     """Open a JSON text file, and return encoded data as dictionary.
 

@@ -51,3 +51,24 @@ def get_predictions(dataset_dict, imreader, key_mapper, predictor):
     img = imreader(key)
     outputs = predictor(img)
     return outputs
+
+
+def get_predictions_new(dataset_dict, predictor):
+    """Returns indices for matched pairs of ground truth and detected objects in an image
+
+    Parameters
+    ----------
+    dataset_dict : dictionary
+        The dictionary metadata for a single image
+    predictor: AstroPredictor
+        The predictor object used to make predictions on the test set
+
+    Returns
+    -------
+        outputs: list(Intances)
+            The list of detected object Instances
+    """
+
+    img = dataset_dict["image_shaped"]
+    outputs = predictor(img)
+    return outputs
