@@ -167,7 +167,7 @@ class RedshiftFlatDictMapper(DataMapper):
         reformatted dictionary including image and instances+redshift (no segmask)
         """
 
-        image = row[0:98304].reshape(128, 128, 6).astype(np.float32)
+        image = row[0:98304].reshape(6, 128, 128).astype(np.float32)
 
         dataset_dict = {}
         dataset_dict["image_id"] = int(row[98307])
@@ -195,8 +195,8 @@ class RedshiftFlatDictMapper(DataMapper):
             augs = T.AugmentationList([])
         # Transformations to model shapes
         transform = augs(auginput)
-        image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
-
+        # image = torch.from_numpy(auginput.image.copy().transpose(2, 0, 1))
+        image = torch.from_numpy(auginput.image.copy())
         annos = [
             utils.transform_instance_annotations(annotation, [transform], image.shape[1:])
             for annotation in dataset_dict.pop("annotations")
@@ -211,11 +211,12 @@ class RedshiftFlatDictMapper(DataMapper):
         return {
             # create the format that the model expects
             "image": image,
-            "image_shaped": auginput.image,
+            "image_shaped": auginput.image.transpose(1, 2, 0),
             "height": dataset_dict["height"],
             "width": dataset_dict["width"],
             "image_id": dataset_dict["image_id"],
             "instances": instances,
+            "annotations": annos,
         }
 
 
