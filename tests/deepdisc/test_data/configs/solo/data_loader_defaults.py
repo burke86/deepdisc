@@ -29,7 +29,7 @@ DATALOADER.ASPECT_RATIO_GROUPING = True
 DATALOADER.FILTER_EMPTY_ANNOTATIONS = True
 DATALOADER.NUM_WORKERS = 4
 DATALOADER.REPEAT_THRESHOLD = 0.0
-DATALOADER.SAMPLER_TRAIN = L(TrainingSampler)() # do not forget the () at the end! even if empty
+DATALOADER.SAMPLER_TRAIN = "TrainingSampler"
 
 # ---------------------------------------------------------------------------- #
 # Datasets

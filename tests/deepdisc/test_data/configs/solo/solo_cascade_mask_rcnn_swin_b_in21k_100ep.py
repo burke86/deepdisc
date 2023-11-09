@@ -1,6 +1,6 @@
 """ This is a demo "solo config" file for use in the modified version of test_run_transformers.py"""
 
-# 50
+# 100
 
 from fvcore.common.param_scheduler import MultiStepParamScheduler
 
@@ -22,7 +22,7 @@ numclasses = len(classes)
 # Standard config (this has always been the LazyConfig/.py-style config)
 # ---------------------------------------------------------------------------- #
 # Get values from template
-from ..COCO.cascade_mask_rcnn_swin_b_in21k_50ep import dataloader, model, train, lr_multiplier, optimizer
+from ..COCO.cascade_mask_rcnn_swin_b_in21k_100ep import dataloader, model, train, lr_multiplier, optimizer
 
 # Overrides
 model.proposal_generator.anchor_generator.sizes = [[8], [16], [32], [64], [128]]
