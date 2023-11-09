@@ -2,21 +2,24 @@
 
 # 100
 
-from fvcore.common.param_scheduler import MultiStepParamScheduler
-
 from detectron2 import model_zoo
 from detectron2.config import LazyCall as L
 from detectron2.solver import WarmupParamScheduler
 from detectron2.modeling import SwinTransformer
+from fvcore.common.param_scheduler import MultiStepParamScheduler
+from omegaconf import OmegaConf
 
 from ..common.coco_loader_lsj import dataloader
 
 # ---------------------------------------------------------------------------- #
-# Local variables
+# Local variables and metadata
 # ---------------------------------------------------------------------------- #
 bs = 1
-classes = ["star", "galaxy"]
-numclasses = len(classes)
+
+metadata = OmegaConf.create() 
+metadata.classes = ["star", "galaxy"]
+
+numclasses = len(metadata.classes)
 
 # ---------------------------------------------------------------------------- #
 # Standard config (this has always been the LazyConfig/.py-style config)
@@ -37,7 +40,7 @@ model.roi_heads.batch_size_per_image = 512
 from .data_loader_defaults import MISC, DATALOADER, DATASETS, GLOBAL, INPUT, MODEL, SOLVER, TEST
 
 # Overrides
-# DATALOADER.NUM_WORKERS = 0 # Check, but I think this was commented out in original testruntransformers code
+# DATALOADER.NUM_WORKERS = 0
 DATALOADER.PREFETCH_FACTOR = 2
 
 DATASETS.TRAIN = "astro_train"  # Register Metadata

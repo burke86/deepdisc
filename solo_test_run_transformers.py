@@ -76,46 +76,21 @@ def main(train_head, args):
     trainfile = dirpath + "single_test.json"
     testfile = dirpath + "single_test.json"
 
-    classes = ["star", "galaxy"]
-    numclasses = len(classes)
-
-    # Register the data sets and get the metadata.
-    astrotrain_metadata = register_data_set("astro_train", trainfile, thing_classes=classes)
-    astroval_metadata = register_data_set("astro_val", testfile, thing_classes=classes)
-
     cfg = LazyConfig.load(cfgfile)
 
-    # metadata = MetadataCatalog.get(cfg.dataloader.test.dataset.names) # to get labels from ids
-
-    bs = 1
-    cfg.model.proposal_generator.anchor_generator.sizes = [[8], [16], [32], [64], [128]]
-    cfg.dataloader.train.total_batch_size = bs
-    cfg.model.roi_heads.num_classes = numclasses
-    cfg.model.roi_heads.batch_size_per_image = 512
-
-    #cfg_loader = get_cfg()
-    #cfg.SOLVER.IMS_PER_BATCH = bs #replaced
-    #cfg.DATASETS.TRAIN = "astro_train"  # Register Metadata #replaced
-    #cfg.DATASETS.TEST = "astro_val" #replaced
-    # cfg_loader.DATALOADER.NUM_WORKERS = 0 #replaced
-    #cfg.DATALOADER.PREFETCH_FACTOR = 2 #replaced
-    #cfg.SOLVER.BASE_LR = 0.001 #replaced
+    # Register the data sets
+    astrotrain_metadata = register_data_set(
+        cfg.DATASETS.TRAIN, trainfile, thing_classes=cfg.metadata.classes
+    )
+    astroval_metadata = register_data_set(
+        cfg.DATASETS.TEST, testfile, thing_classes=cfg.metadata.classes
+    )
     
-    cfg.OUTPUT_DIR = output_dir #replaced
-    os.makedirs(cfg.OUTPUT_DIR, exist_ok=True) #replaced
+    # Set the output directory
+    cfg.OUTPUT_DIR = output_dir
+    os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
 
-    #cfg.SOLVER.CLIP_GRADIENTS.ENABLED = True #replaced
-    # Type of gradient clipping, currently 2 values are supported:
-    # - "value": the absolute values of elements of each gradients are clipped
-    # - "norm": the norm of the gradient for each parameter is clipped thus
-    #   affecting all elements in the parameter
-    #cfg.SOLVER.CLIP_GRADIENTS.CLIP_TYPE = "norm" #replaced
-    # Maximum absolute value used for clipping gradients
-    # Floating point number p for L-p norm to be used with the "norm"
-    # gradient clipping type; for L-inf, please specify .inf
-    #cfg.SOLVER.CLIP_GRADIENTS.NORM_TYPE = 5.0 #replaced
-
-    # iterations for 15,25,35,50 epochs
+    # Iterations for 15, 25, 35, 50 epochs
     epoch = int(args.tl / cfg.dataloader.train.total_batch_size)
     e1 = 20
     e2 = epoch * 10
@@ -139,7 +114,7 @@ def main(train_head, args):
         cfg.SOLVER.LR_SCHEDULER_NAME = "WarmupMultiStepLR" #replaced
         cfg.SOLVER.WARMUP_ITERS = 0 #replaced
         cfg.SOLVER.MAX_ITER = e1  # for DefaultTrainer #replaced
-
+        
         # optimizer = instantiate(cfg.optimizer)
 
         optimizer = return_optimizer(cfg)
