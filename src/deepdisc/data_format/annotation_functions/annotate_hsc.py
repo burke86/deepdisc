@@ -4,7 +4,25 @@ from astropy.io import fits
 from detectron2.structures import BoxMode
 
 
-def annotate_hsc(images, mask, filters, idx=0):
+def annotate_hsc(images, mask, idx, filters):
+    """Generates annotation metadata for hsc data
+
+    Parameters
+    ----------
+    images : list
+        A list of paths to image files, expected to have one file per filter.
+    mask: str
+        A path to a mask file for the images.
+    idx: int
+        An integer to uniquely identify the resulting record.
+    filters: list
+        A list of all filter labels, should map to the list of images.
+
+    Returns
+    -------
+    record : dictionary
+        A dictionary of metadata and derived annotations.
+    """
     # pick a filter
     filt_idx = 0  # g=0, r=1, i=2
 
