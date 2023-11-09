@@ -1,21 +1,27 @@
-"""Defaults translated from _C, a yaml-style config, to a LazyConfig style config"""
+"""Defaults translated from Detectron2's ConfigNode-style config to a 
+LazyConfig-style config.
+
+This may be used as a base config in any other LazyConfig-style file, just import:
+from .data_loader_defaults import MISC, DATALOADER, DATASETS, GLOBAL, INPUT, MODEL, SOLVER, TEST
+
+Values are as defined in detectron2/config/defaults.py, which can be found at:
+https://github.com/facebookresearch/detectron2/blob/main/detectron2/config/defaults.py
+"""
 
 from omegaconf import OmegaConf
 
 # ---------------------------------------------------------------------------- #
 # Misc
 # ---------------------------------------------------------------------------- #
+# The values defined in "MISC" were originally primitive values in the yaml.
+# For example, see CUDNNBENCHMARK vs DATALOADER:
 
-# TODO write an explanation of how these one-liners have to be bundled under
-# MISC or they'll be ignored
+# CUDNNBENCHMARK: false
+# DATALOADER:
+#     ASPECT_RATIO_GROUPING: true
 
-# In the yaml they are
-# CUDNNBENCHMARK = false
-# But in a .py config, 
-# CUDNNBENCHMARK = False
-# would be treated as a local var and ignored
-# So it must be
-# MISC.CUDNNBENCHMARK = False
+# These primitive values will be overlooked in our LazyConfig unless we bundle
+# them in to their own object, thus, we have MISC.
 
 MISC = OmegaConf.create()
 MISC.CUDNNBENCHMARK = False
@@ -148,7 +154,11 @@ MODEL.RETINANET.SMOOTH_L1_LOSS_BETA = 0.1
 MODEL.RETINANET.TOPK_CANDIDATES_TEST = 1000
 
 MODEL.ROI_BOX_CASCADE_HEAD = OmegaConf.create()
-MODEL.ROI_BOX_CASCADE_HEAD.BBOX_REG_WEIGHTS = ((10.0, 10.0, 5.0, 5.0), (20.0, 20.0, 10.0, 10.0), (30.0, 30.0, 15.0, 15.0))
+MODEL.ROI_BOX_CASCADE_HEAD.BBOX_REG_WEIGHTS = (
+    (10.0, 10.0, 5.0, 5.0), 
+    (20.0, 20.0, 10.0, 10.0), 
+    (30.0, 30.0, 15.0, 15.0)
+)
 MODEL.ROI_BOX_CASCADE_HEAD.IOUS = [0.5, 0.6, 0.7]
 
 MODEL.ROI_BOX_HEAD = OmegaConf.create()
@@ -230,20 +240,20 @@ MODEL.SEM_SEG_HEAD.WEIGHTS = ""
 # ---------------------------------------------------------------------------- #
 
 SOLVER = OmegaConf.create()
-SOLVER.AMP = OmegaConf.create({'ENABLED': False})
+SOLVER.AMP = OmegaConf.create()
+SOLVER.AMP.ENABLED = False
 SOLVER.BASE_LR = 0.001
 SOLVER.BASE_LR_END = 0.0
 SOLVER.BIAS_LR_FACTOR = 1.0
 SOLVER.CHECKPOINT_PERIOD = 5000
-SOLVER.CLIP_GRADIENTS = OmegaConf.create({
-    'CLIP_TYPE': 'value',
-    'CLIP_VALUE': 1.0,
-    'ENABLED': False,
-    'NORM_TYPE': 2.0
-})
+SOLVER.CLIP_GRADIENTS = OmegaConf.create()
+SOLVER.CLIP_GRADIENTS.CLIP_TYPE = "value"
+SOLVER.CLIP_GRADIENTS.CLIP_VALUE = 1.0
+SOLVER.CLIP_GRADIENTS.ENABLED = False
+SOLVER.CLIP_GRADIENTS.NORM_TYPE = 2.0
 SOLVER.GAMMA = 0.1
 SOLVER.IMS_PER_BATCH = 16
-SOLVER.LR_SCHEDULER_NAME = 'WarmupMultiStepLR'
+SOLVER.LR_SCHEDULER_NAME = "WarmupMultiStepLR"
 SOLVER.MAX_ITER = 40000
 SOLVER.MOMENTUM = 0.9
 SOLVER.NESTEROV = False
@@ -253,7 +263,7 @@ SOLVER.RESCALE_INTERVAL = False
 SOLVER.STEPS = [30000]
 SOLVER.WARMUP_FACTOR = 0.001
 SOLVER.WARMUP_ITERS = 1000
-SOLVER.WARMUP_METHOD = 'linear'
+SOLVER.WARMUP_METHOD = "linear"
 SOLVER.WEIGHT_DECAY = 0.0001
 SOLVER.WEIGHT_DECAY_BIAS = None
 SOLVER.WEIGHT_DECAY_NORM = 0.0
@@ -263,17 +273,15 @@ SOLVER.WEIGHT_DECAY_NORM = 0.0
 # ---------------------------------------------------------------------------- #
 
 TEST = OmegaConf.create()
-TEST.AUG = OmegaConf.create({
-    'ENABLED': False,
-    'FLIP': True,
-    'MAX_SIZE': 4000,
-    'MIN_SIZES': [400, 500, 600, 700, 800, 900, 1000, 1100, 1200]
-})
+TEST.AUG = OmegaConf.create()
+TEST.AUG.ENABLED = False
+TEST.AUG.FLIP = True
+TEST.AUG.MAX_SIZE = 4000
+TEST.AUG.MIN_SIZES = [400, 500, 600, 700, 800, 900, 1000, 1100, 1200]
 TEST.DETECTIONS_PER_IMAGE = 100
 TEST.EVAL_PERIOD = 0
 TEST.EXPECTED_RESULTS = []
 TEST.KEYPOINT_OKS_SIGMAS = []
-TEST.PRECISE_BN = OmegaConf.create({
-    'ENABLED': False,
-    'NUM_ITER': 200
-})
+TEST.PRECISE_BN = OmegaConf.create()
+TEST.PRECISE_BN.ENABLED = False
+TEST.PRECISE_BN.NUM_ITER = 200
