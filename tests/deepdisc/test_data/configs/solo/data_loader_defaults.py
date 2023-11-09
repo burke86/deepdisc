@@ -3,15 +3,22 @@
 from detectron2.config import LazyCall as L
 from omegaconf import OmegaConf
 
-# Lazy calls:
-from detectron2.data.samplers.distributed_sampler import TrainingSampler
-
-# TODO go through string vals and replace with lazy function calls as needed
 # TODO fill in 3 missing lines that came from weird sort-of-array syntax
 
 # ---------------------------------------------------------------------------- #
 # Misc
 # ---------------------------------------------------------------------------- #
+
+# TODO write an explanation of how these one-liners have to be bundled under
+# MISC or they'll be ignored
+
+# In _C.yml
+# CUDNNBENCHMARK = false
+# But in a .py config, 
+# CUDNNBENCHMARK = False
+# would be treated as a local var and ignored
+# So it must be
+# MISC.CUDNNBENCHMARK = False
 
 MISC = OmegaConf.create() # for non-objects (otherwise they are ignored)
 MISC.CUDNNBENCHMARK = False
@@ -57,8 +64,8 @@ GLOBAL.HACK = 1.0
 INPUT = OmegaConf.create()
 INPUT.CROP = OmegaConf.create()
 INPUT.CROP.ENABLED = False
-INPUT.CROP.SIZE = [0.9, 0.9] # is this a correct translation?
-INPUT.CROP.TYPE = "relative_range" # is it ok to make these strings? should some be lazy objects?
+INPUT.CROP.SIZE = [0.9, 0.9]
+INPUT.CROP.TYPE = "relative_range"
 INPUT.FORMAT = "BGR"
 INPUT.MASK_FORMAT = "polygon"
 INPUT.MAX_SIZE_TEST = 1333
