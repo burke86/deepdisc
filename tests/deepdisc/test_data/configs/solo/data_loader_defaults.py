@@ -1,21 +1,27 @@
-"""Defaults translated from _C, a yaml-style config, to a LazyConfig style config"""
+"""Defaults translated from Detectron2's ConfigNode-style config to a 
+LazyConfig-style config.
+
+This may be used as a base config in any other LazyConfig-style file, just import:
+from .data_loader_defaults import MISC, DATALOADER, DATASETS, GLOBAL, INPUT, MODEL, SOLVER, TEST
+
+Values are as defined in detectron2/config/defaults.py, which can be found at:
+https://github.com/facebookresearch/detectron2/blob/main/detectron2/config/defaults.py
+"""
 
 from omegaconf import OmegaConf
 
 # ---------------------------------------------------------------------------- #
 # Misc
 # ---------------------------------------------------------------------------- #
+# The values defined in "MISC" were originally primitive values in the yaml.
+# For example, see CUDNNBENCHMARK vs DATALOADER:
 
-# TODO write an explanation of how these one-liners have to be bundled under
-# MISC or they'll be ignored
+# CUDNNBENCHMARK: false
+# DATALOADER:
+#     ASPECT_RATIO_GROUPING: true
 
-# In the yaml they are
-# CUDNNBENCHMARK = false
-# But in a .py config, 
-# CUDNNBENCHMARK = False
-# would be treated as a local var and ignored
-# So it must be
-# MISC.CUDNNBENCHMARK = False
+# These primitive values will be overlooked in our LazyConfig unless we bundle
+# them in to their own object, thus, we have MISC.
 
 MISC = OmegaConf.create()
 MISC.CUDNNBENCHMARK = False
@@ -148,7 +154,11 @@ MODEL.RETINANET.SMOOTH_L1_LOSS_BETA = 0.1
 MODEL.RETINANET.TOPK_CANDIDATES_TEST = 1000
 
 MODEL.ROI_BOX_CASCADE_HEAD = OmegaConf.create()
-MODEL.ROI_BOX_CASCADE_HEAD.BBOX_REG_WEIGHTS = ((10.0, 10.0, 5.0, 5.0), (20.0, 20.0, 10.0, 10.0), (30.0, 30.0, 15.0, 15.0))
+MODEL.ROI_BOX_CASCADE_HEAD.BBOX_REG_WEIGHTS = (
+    (10.0, 10.0, 5.0, 5.0), 
+    (20.0, 20.0, 10.0, 10.0), 
+    (30.0, 30.0, 15.0, 15.0)
+)
 MODEL.ROI_BOX_CASCADE_HEAD.IOUS = [0.5, 0.6, 0.7]
 
 MODEL.ROI_BOX_HEAD = OmegaConf.create()
