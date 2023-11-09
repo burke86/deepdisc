@@ -1,6 +1,6 @@
-""" This is a demo "solo config" file for use in the modified version of test_run_transformers.py"""
+""" This is a demo "solo config" file for use in solo_test_run_transformers.py.
 
-# 50
+This uses template configs cascade_mask_rcnn_swin_b_in21k_50ep and yaml_style_defaults."""
 
 from detectron2 import model_zoo
 from detectron2.config import LazyCall as L
@@ -8,8 +8,6 @@ from detectron2.solver import WarmupParamScheduler
 from detectron2.modeling import SwinTransformer
 from fvcore.common.param_scheduler import MultiStepParamScheduler
 from omegaconf import OmegaConf
-
-from ..common.coco_loader_lsj import dataloader
 
 # ---------------------------------------------------------------------------- #
 # Local variables and metadata
@@ -24,7 +22,8 @@ numclasses = len(metadata.classes)
 # ---------------------------------------------------------------------------- #
 # Standard config (this has always been the LazyConfig/.py-style config)
 # ---------------------------------------------------------------------------- #
-# Get values from template
+# Get values from templates
+from ..common.coco_loader_lsj import dataloader
 from ..COCO.cascade_mask_rcnn_swin_b_in21k_50ep import dataloader, model, train, lr_multiplier, optimizer
 
 # Overrides
@@ -34,16 +33,15 @@ model.roi_heads.num_classes = numclasses
 model.roi_heads.batch_size_per_image = 512
 
 # ---------------------------------------------------------------------------- #
-# Dataloader config (was formerly saved as a .yaml file, loaded to cfg_loader)
+# Yaml-style config (was formerly saved as a .yaml file, loaded to cfg_loader)
 # ---------------------------------------------------------------------------- #
 # Get values from template
-from .data_loader_defaults import MISC, DATALOADER, DATASETS, GLOBAL, INPUT, MODEL, SOLVER, TEST
+from .yaml_style_defaults import MISC, DATALOADER, DATASETS, GLOBAL, INPUT, MODEL, SOLVER, TEST
 
 # Overrides
-# DATALOADER.NUM_WORKERS = 0 # Check, but I think this was commented out in original testruntransformers code
 DATALOADER.PREFETCH_FACTOR = 2
 
-DATASETS.TRAIN = "astro_train"  # Register Metadata
+DATASETS.TRAIN = "astro_train"
 DATASETS.TEST = "astro_val"
 
 SOLVER.BASE_LR = 0.001

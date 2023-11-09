@@ -1,12 +1,15 @@
-# Training script for LazyConfig models
+""" Training script for LazyConfig models.
+
+This uses the new "solo config" in which the previous yaml-style config
+(a Detectron CfgNode type called cfg_loader) is now bundled into the
+LazyConfig type cfg.
+"""
+
 try:
     # ignore ShapelyDeprecationWarning from fvcore
     import warnings
-
     from shapely.errors import ShapelyDeprecationWarning
-
-    warnings.filterwarnings("ignore", category=ShapelyDeprecationWarning)
-
+    warnings.filterwarnings("ignore", category=sShapelyDeprecationWarning)
 except:
     pass
 warnings.filterwarnings("ignore", category=RuntimeWarning)
@@ -15,7 +18,6 @@ warnings.filterwarnings("ignore", category=UserWarning)
 # Some basic setup:
 # Setup detectron2 logger
 from detectron2.utils.logger import setup_logger
-
 setup_logger()
 
 import gc
@@ -50,9 +52,9 @@ from deepdisc.utils.parse_arguments import dtype_from_args, make_training_arg_pa
 def main(train_head, args):
     # Hack if you get SSL certificate error
     import ssl
-
     ssl._create_default_https_context = ssl._create_unverified_context
 
+    # Handle args
     output_dir = args.output_dir
     output_name = args.run_name
     dirpath = args.data_dir  # Path to dataset
@@ -61,21 +63,19 @@ def main(train_head, args):
     modname = args.modname
     if modname == "swin":
         cfgfile = "./tests/deepdisc/test_data/configs/solo/solo_cascade_mask_rcnn_swin_b_in21k_50ep.py"
-        #cfgfile = "./tests/deepdisc/test_data/configs/COCO/cascade_mask_rcnn_swin_b_in21k_50ep.py" #replaced
         # initwfile = "/home/shared/hsc/detectron2/projects/ViTDet/model_final_246a82.pkl"
     elif modname == "mvitv2":
         cfgfile = "/home/shared/hsc/detectron2/projects/ViTDet/configs/COCO/cascade_mask_rcnn_mvitv2_b_in21k_100ep.py"
         # initwfile = "/home/shared/hsc/detectron2/projects/ViTDet/model_final_8c3da3.pkl"
-
     elif modname == "vitdet":
         cfgfile = "/home/shared/hsc/detectron2/projects/ViTDet/configs/COCO/mask_rcnn_vitdet_b_100ep.py"
         # initwfile = '/home/g4merz/deblend/detectron2/projects/ViTDet/model_final_435fa9.pkl'
         # initwfile = "/home/shared/hsc/detectron2/projects/ViTDet/model_final_61ccd1.pkl"
-
     dtype = dtype_from_args(args.dtype)
     trainfile = dirpath + "single_test.json"
     testfile = dirpath + "single_test.json"
 
+    # Load the config
     cfg = LazyConfig.load(cfgfile)
 
     # Register the data sets
@@ -100,23 +100,19 @@ def main(train_head, args):
     val_per = 5
 
     if train_head:
-        # cfg.train.init_checkpoint = initwfile # replace with the path were you have your model
-        cfg.train.init_checkpoint = None
-
-        # Step 1)
+        cfg.train.init_checkpoint = None # or initwfile, the path to your model
 
         model = return_lazy_model(cfg)
 
         cfg.optimizer.params.model = model
         cfg.optimizer.lr = 0.001
 
-        cfg.SOLVER.STEPS = []  # do not decay learning rate for retraining #replaced
-        cfg.SOLVER.LR_SCHEDULER_NAME = "WarmupMultiStepLR" #replaced
-        cfg.SOLVER.WARMUP_ITERS = 0 #replaced
-        cfg.SOLVER.MAX_ITER = e1  # for DefaultTrainer #replaced
+        cfg.SOLVER.STEPS = []  # do not decay learning rate for retraining 
+        cfg.SOLVER.LR_SCHEDULER_NAME = "WarmupMultiStepLR"
+        cfg.SOLVER.WARMUP_ITERS = 0
+        cfg.SOLVER.MAX_ITER = e1  # for DefaultTrainer
         
         # optimizer = instantiate(cfg.optimizer)
-
         optimizer = return_optimizer(cfg)
 
         # key_mapper function should take a dataset_dict as input and output a key used by the image_reader function
@@ -130,16 +126,16 @@ def main(train_head, args):
 
         IR = HSCImageReader(norm=args.norm)
         mapper = DictMapper(IR, hsc_key_mapper, train_augs).map_data
-        loader = return_train_loader(cfg, mapper) #replaced
+        loader = return_train_loader(cfg, mapper)
         test_mapper = DictMapper(IR, hsc_key_mapper, hsc_test_augs).map_data
-        test_loader = return_test_loader(cfg, test_mapper) #replaced
+        test_loader = return_test_loader(cfg, test_mapper)
 
         saveHook = return_savehook(output_name)
         lossHook = return_evallosshook(val_per, model, test_loader)
         schedulerHook = return_schedulerhook(optimizer)
         hookList = [lossHook, schedulerHook, saveHook]
 
-        trainer = return_lazy_trainer(model, loader, optimizer, cfg, cfg, hookList) #replaced
+        trainer = return_lazy_trainer(model, loader, optimizer, cfg, cfg, hookList)
 
         trainer.set_period(5)
         trainer.train(0, 20)
