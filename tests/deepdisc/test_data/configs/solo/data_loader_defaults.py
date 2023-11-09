@@ -1,9 +1,6 @@
 """Defaults translated from _C, a yaml-style config, to a LazyConfig style config"""
 
-from detectron2.config import LazyCall as L
 from omegaconf import OmegaConf
-
-# TODO fill in 3 missing lines that came from weird sort-of-array syntax
 
 # ---------------------------------------------------------------------------- #
 # Misc
@@ -135,22 +132,6 @@ MODEL.RESNETS.WIDTH_PER_GROUP = 64
 
 MODEL.RETINANET = OmegaConf.create()
 MODEL.RETINANET.BBOX_REG_LOSS_TYPE = "smooth_l1"
-
-# TODO CHECK
-""" in yaml, this section looks like:
-RETINANET:
-    BBOX_REG_LOSS_TYPE: smooth_l1
-    BBOX_REG_WEIGHTS: &id002
-    - 1.0
-    - 1.0
-    - 1.0
-    - 1.0
-    FOCAL_LOSS_ALPHA: 0.25
-"""
-""" in test_run_transformers.py,
-cfg.MODEL.RETINANET.BBOX_REG_WEIGHTS is (1.0, 1.0, 1.0, 1.0)
-and is type tuple
-"""
 MODEL.RETINANET.BBOX_REG_WEIGHTS = (1.0, 1.0, 1.0, 1.0)
 MODEL.RETINANET.FOCAL_LOSS_ALPHA = 0.25
 MODEL.RETINANET.FOCAL_LOSS_GAMMA = 2.0
@@ -167,34 +148,12 @@ MODEL.RETINANET.SMOOTH_L1_LOSS_BETA = 0.1
 MODEL.RETINANET.TOPK_CANDIDATES_TEST = 1000
 
 MODEL.ROI_BOX_CASCADE_HEAD = OmegaConf.create()
-# TODO CHECK
-"""
- ROI_BOX_CASCADE_HEAD:
-    BBOX_REG_WEIGHTS:
-    - &id001
-      - 10.0
-      - 10.0
-      - 5.0
-      - 5.0
-    - - 20.0
-      - 20.0
-      - 10.0
-      - 10.0
-    - - 30.0
-      - 30.0
-      - 15.0
-      - 15.0
-"""
 MODEL.ROI_BOX_CASCADE_HEAD.BBOX_REG_WEIGHTS = ((10.0, 10.0, 5.0, 5.0), (20.0, 20.0, 10.0, 10.0), (30.0, 30.0, 15.0, 15.0))
 MODEL.ROI_BOX_CASCADE_HEAD.IOUS = [0.5, 0.6, 0.7]
 
 MODEL.ROI_BOX_HEAD = OmegaConf.create()
 MODEL.ROI_BOX_HEAD.BBOX_REG_LOSS_TYPE = "smooth_l1"
 MODEL.ROI_BOX_HEAD.BBOX_REG_LOSS_WEIGHT = 1.0
-# TODO CHECK
-"""
-BBOX_REG_WEIGHTS: *id001
-"""
 MODEL.ROI_BOX_HEAD.BBOX_REG_WEIGHTS = (10.0, 10.0, 5.0, 5.0)
 MODEL.ROI_BOX_HEAD.CLS_AGNOSTIC_BBOX_REG = False
 MODEL.ROI_BOX_HEAD.CONV_DIM = 256
@@ -239,11 +198,7 @@ MODEL.RPN = OmegaConf.create()
 MODEL.RPN.BATCH_SIZE_PER_IMAGE = 256
 MODEL.RPN.BBOX_REG_LOSS_TYPE = "smooth_l1"
 MODEL.RPN.BBOX_REG_LOSS_WEIGHT = 1.0
-# TODO CHECK
-"""
-BBOX_REG_WEIGHTS: *id002
-"""
-MODEL.RPN.BBOX_REG_WEIGHTS = "*id002"
+MODEL.RPN.BBOX_REG_WEIGHTS = (1.0, 1.0, 1.0, 1.0)
 MODEL.RPN.BOUNDARY_THRESH = -1
 MODEL.RPN.CONV_DIMS = [-1]
 MODEL.RPN.HEAD_NAME = "StandardRPNHead"
