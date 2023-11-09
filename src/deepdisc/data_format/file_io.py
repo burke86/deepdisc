@@ -81,6 +81,7 @@ class DataLoader:
         if n_samples:
             masks = masks[0:n_samples]
         filenames_dict["mask"] = masks
+        filenames_dict["index"] = [masks.index(val) for val in masks]
 
         # Store the result in a class property for future use.
         self.filedict = filenames_dict
@@ -121,13 +122,12 @@ class DataLoader:
         dataset_dicts = []
 
         # Use user-provided function to generate a dictionary record per image set
-        for images, mask in zip(img_files, filedict["mask"]):
-
+        for images, mask, index in zip(img_files, filedict["mask"], filedict["index"]):
             # pass along filter list if requested
             if filters:
-                record = func(images, mask, filedict['filters'], **kwargs)
+                record = func(images, mask, index, filedict["filters"], **kwargs)
             else:
-                record = func(images, mask, **kwargs)
+                record = func(images, mask, index, **kwargs)
 
             # Add records to the data_dict
             dataset_dicts.append(record)
