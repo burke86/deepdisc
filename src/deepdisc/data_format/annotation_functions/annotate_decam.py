@@ -30,7 +30,7 @@ def annotate_decam(images, mask, idx):
         data = [hdu.data / np.max(hdu.data) for hdu in hdul]
         category_ids = [hdu.header["CLASS_ID"] for hdu in hdul]
 
-    record["file_name"] = images[0]  # pick the first filter
+    record["file_name"] = images[0][0:-7]  # chop off the _[band].fits
     record["image_id"] = idx
     record["height"] = height
     record["width"] = width
