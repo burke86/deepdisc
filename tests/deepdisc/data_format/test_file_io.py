@@ -1,7 +1,7 @@
 import os
 import pytest
 
-from deepdisc.data_format.file_io import get_data_from_json, DataLoader
+from deepdisc.data_format.file_io import get_data_from_json, DDLoader
 from deepdisc.data_format.annotation_functions.annotate_hsc import annotate_hsc
 
 
@@ -32,8 +32,8 @@ def test_data_loader_generate_filedict():
 
     test_data_dirpath = 'tests/deepdisc/test_data/'
 
-    # Initialize the DataLoader object
-    hsc_loader = DataLoader()
+    # Initialize the DDLoader object
+    hsc_loader = DDLoader()
 
     filters = ['G', 'R', 'I']
 
@@ -60,8 +60,8 @@ def test_data_loader_generate_filedict_with_num_samples():
     #this block is for debug purposes, set to -1 to include every sample
     num_samples = 1
 
-    # Initialize the DataLoader object
-    hsc_loader = DataLoader()
+    # Initialize the DDLoader object
+    hsc_loader = DDLoader()
 
     filters = ['I']
 
@@ -84,8 +84,8 @@ def test_data_loader_generate_filedict_with_subdir():
 
     test_data_dirpath = 'tests/deepdisc/test_data/'
 
-    # Initialize the DataLoader object
-    hsc_loader = DataLoader()
+    # Initialize the DDLoader object
+    hsc_loader = DDLoader()
 
     filters = ['G', 'R', 'I']
 
@@ -109,8 +109,8 @@ def test_data_loader_generate_dataset_dict_hsc():
 
     test_data_dirpath = 'tests/deepdisc/test_data/'
 
-    # Initialize the DataLoader object
-    hsc_loader = DataLoader()
+    # Initialize the DDLoader object
+    hsc_loader = DDLoader()
 
     filters = ['G', 'R', 'I']
 
@@ -142,8 +142,8 @@ def test_data_loader_generate_dataset_dict_hsc():
 def test_data_loader_generate_dataset_no_file_dict():
     """Test assertion when no file dict is present"""
 
-    # Initialize the DataLoader object
-    hsc_loader = DataLoader()
+    # Initialize the DDLoader object
+    hsc_loader = DDLoader()
 
     with pytest.raises(ValueError) as excinfo:
         hsc_loader.generate_dataset_dict(annotate_hsc)
