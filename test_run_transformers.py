@@ -14,61 +14,28 @@ warnings.filterwarnings("ignore", category=UserWarning)
 
 # Some basic setup:
 # Setup detectron2 logger
-import detectron2
 from detectron2.utils.logger import setup_logger
 
 setup_logger()
 
-import copy
 import gc
-import glob
-import logging
 import os
-import random
-import sys
 import time
-import weakref
-from typing import Dict, List, Optional
 
-import cv2
-import detectron2.checkpoint as checkpointer
-import detectron2.data as data
-import detectron2.data.transforms as T
-import detectron2.modeling as modeler
-import detectron2.solver as solver
 import detectron2.utils.comm as comm
-import imgaug.augmenters.blur as blur
-import imgaug.augmenters.flip as flip
 
 # import some common libraries
 import numpy as np
 import torch
-from astropy.io import fits
 
 # import some common detectron2 utilities
-from detectron2 import model_zoo
-from detectron2.checkpoint import DetectionCheckpointer
-from detectron2.config import LazyConfig, get_cfg, instantiate
-from detectron2.data import DatasetCatalog, MetadataCatalog, build_detection_train_loader
-from detectron2.data import detection_utils as utils
-from detectron2.engine import (
-    DefaultPredictor,
-    DefaultTrainer,
-    HookBase,
-    SimpleTrainer,
-    default_argument_parser,
-    default_setup,
-    hooks,
-    launch,
-)
-from detectron2.engine.defaults import create_ddp_model
-from detectron2.solver import build_lr_scheduler
-from detectron2.structures import BoxMode
-from detectron2.utils.visualizer import Visualizer
+from detectron2.config import LazyConfig, get_cfg
+from detectron2.engine import launch
 
-from deepdisc.data_format.file_io import ImageReader
+from deepdisc.data_format.augment_image import hsc_test_augs, train_augs
+from deepdisc.data_format.image_readers import HSCImageReader
 from deepdisc.data_format.register_data import register_data_set
-from deepdisc.model.loaders import return_test_loader, return_train_loader, test_mapper_cls, train_mapper_cls
+from deepdisc.model.loaders import DictMapper, return_test_loader, return_train_loader
 from deepdisc.model.models import return_lazy_model
 from deepdisc.training.trainers import (
     return_evallosshook,
@@ -78,13 +45,6 @@ from deepdisc.training.trainers import (
     return_schedulerhook,
 )
 from deepdisc.utils.parse_arguments import dtype_from_args, make_training_arg_parser
-
-# from astrodet import astrodet as toolkit
-# from astrodet import detectron as detectron_addons
-
-
-
-
 
 
 def main(train_head, args):
@@ -181,20 +141,8 @@ def main(train_head, args):
         # optimizer = instantiate(cfg.optimizer)
 
         optimizer = return_optimizer(cfg)
-        #image_reader function takes a key and uses it to load a raw image
-        def hsc_image_reader(filenames):
-            g = fits.getdata(os.path.join(filenames[0]), memmap=False)
-            length, width = g.shape
-            image = np.empty([length, width, 3])
-            r = fits.getdata(os.path.join(filenames[1]), memmap=False)
-            i = fits.getdata(os.path.join(filenames[2]), memmap=False)
 
-            image[:, :, 0] = i
-            image[:, :, 1] = r
-            image[:, :, 2] = g
-            return image
-
-        #key_mapper function should take a dataset_dict as input and output a key used by the image_reader function
+        # key_mapper function should take a dataset_dict as input and output a key used by the image_reader function
         def hsc_key_mapper(dataset_dict):
             filenames = [
                 dataset_dict["filename_G"],
@@ -203,10 +151,10 @@ def main(train_head, args):
             ]
             return filenames
 
-        IR = ImageReader(hsc_image_reader, norm=args.norm)
-        mapper = train_mapper_cls(IR, hsc_key_mapper)
+        IR = HSCImageReader(norm=args.norm)
+        mapper = DictMapper(IR, hsc_key_mapper, train_augs).map_data
         loader = return_train_loader(cfg_loader, mapper)
-        test_mapper = test_mapper_cls(IR, hsc_key_mapper)
+        test_mapper = DictMapper(IR, hsc_key_mapper, hsc_test_augs).map_data
         test_loader = return_test_loader(cfg_loader, test_mapper)
 
         saveHook = return_savehook(output_name)
