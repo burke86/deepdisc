@@ -6,7 +6,7 @@ import os
 import cv2
 import numpy as np
 from detectron2.structures import BoxMode
-from astropy.visualization import make_lupton_rgb
+
 
 
 class DDLoader:
