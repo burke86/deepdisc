@@ -8,7 +8,6 @@ import numpy as np
 from detectron2.structures import BoxMode
 
 
-
 class DDLoader:
     """A base deepdisc data loader class"""
 
@@ -93,7 +92,7 @@ class DDLoader:
 
         return self
 
-    def generate_dataset_dict(self, func, filedict=None, filters=True, **kwargs):
+    def generate_dataset_dict(self, func=None, filedict=None, filters=True, **kwargs):
         """Generates a list of dictionaries using a user-defined annotation
         generator function on each image file/mask. The format is determined
         by the user defined function
@@ -122,6 +121,11 @@ class DDLoader:
             A DataLoader with a dataset dictionary generated. Access using
             `DataLoader.get_dataset()`.
         """
+
+        if func is None:
+            raise ValueError(
+                "No annotation function has been provided. Please supply a function that takes in arguments: (image_files, mask_file, index, and optionally filters)."
+            )
         if filedict is None:
             if self.filedict is None:
                 raise ValueError("No file dictionary has been provided.")
