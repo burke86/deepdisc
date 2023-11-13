@@ -9,8 +9,8 @@ from detectron2.structures import BoxMode
 from astropy.visualization import make_lupton_rgb
 
 
-class DataLoader:
-    """A base data loader class"""
+class DDLoader:
+    """A base deepdisc data loader class"""
 
     def __init__(self):
         self.filedict = None
@@ -47,7 +47,7 @@ class DataLoader:
         filt_loc: int
             The integer location of the filter within the image name, used to
             split files across filters accordingly. E.g. 001_img_r.fits would
-            have a filt_loc of 8 (or -6). Editorial Note: This is rough
+            have a filt_loc of 8 (or -6).
         n_samples: int
             If specified, filters down to a subset of the dataset that contains
             `n_samples` image files per filter.
