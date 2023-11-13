@@ -6,6 +6,7 @@ from detectron2.structures import BoxMode
 # This is primarily a reference, no need to change.
 FILT_INX = 0  # g=0, r=1, i=2
 
+
 def annotate_hsc(images, mask, idx, filters):
     """Generates annotation metadata for hsc data
 
@@ -67,9 +68,7 @@ def annotate_hsc(images, mask, idx, filters):
         x, y, w, h = bbox[i]  # (x0, y0, w, h)
 
         # https://github.com/facebookresearch/Detectron/issues/100
-        contours, _ = cv2.findContours(
-            (mask).astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, _ = cv2.findContours((mask).astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         segmentation = []
         for contour in contours:
             # contour = [x1, y1, ..., xn, yn]

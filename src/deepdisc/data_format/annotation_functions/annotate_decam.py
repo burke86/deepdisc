@@ -49,9 +49,7 @@ def annotate_decam(images, mask, idx):
         mask[:, :] = cv2.GaussianBlur(mask[:, :], (9, 9), 2)
 
         # https://github.com/facebookresearch/Detectron/issues/100
-        contours, _ = cv2.findContours(
-            (mask).astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
-        )
+        contours, _ = cv2.findContours((mask).astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE)
         segmentation = []
         for contour in contours:
             x, y, w, h = cv2.boundingRect(contour)
