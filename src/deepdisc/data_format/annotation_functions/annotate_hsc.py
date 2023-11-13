@@ -3,6 +3,8 @@ import numpy as np
 from astropy.io import fits
 from detectron2.structures import BoxMode
 
+# This is primarily a reference, no need to change.
+FILT_INX = 0  # g=0, r=1, i=2
 
 def annotate_hsc(images, mask, idx, filters):
     """Generates annotation metadata for hsc data
@@ -23,13 +25,11 @@ def annotate_hsc(images, mask, idx, filters):
     record : dictionary
         A dictionary of metadata and derived annotations.
     """
-    # pick a filter
-    filt_idx = 0  # g=0, r=1, i=2
 
     record = {}
 
     # Open FITS image of first filter (each should have same shape)
-    with fits.open(images[filt_idx], memmap=False, lazy_load_hdus=False) as hdul:
+    with fits.open(images[FILT_INX], memmap=False, lazy_load_hdus=False) as hdul:
         height, width = hdul[0].data.shape
 
     # Open the FITS mask image
@@ -42,14 +42,13 @@ def annotate_hsc(images, mask, idx, filters):
 
         ellipse_pars = [hdu.header["ELL_PARM"] for hdu in hdul]
         bbox = [list(map(int, hdu.header["BBOX"].split(","))) for hdu in hdul]
-        area = [hdu.header["AREA"] for hdu in hdul]
 
     # Add image metadata to record (should be the same for each filter)
     for f in filters:
         record[f"filename_{f.upper()}"] = images[filters.index(f)]
 
     # Assign file_name
-    record[f"file_name"] = images[filt_idx]
+    record[f"file_name"] = images[FILT_INX]
     record["image_id"] = idx
     record["height"] = height
     record["width"] = width
@@ -61,7 +60,6 @@ def annotate_hsc(images, mask, idx, filters):
         # Why do we need this?
         if len(image.shape) != 2:
             continue
-        height_mask, width_mask = image.shape
         # Create mask from threshold
         mask = data[i]
         # Smooth mask
@@ -69,7 +67,7 @@ def annotate_hsc(images, mask, idx, filters):
         x, y, w, h = bbox[i]  # (x0, y0, w, h)
 
         # https://github.com/facebookresearch/Detectron/issues/100
-        contours, hierarchy = cv2.findContours(
+        contours, _ = cv2.findContours(
             (mask).astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
         )
         segmentation = []
@@ -80,12 +78,14 @@ def annotate_hsc(images, mask, idx, filters):
                 contour[::2] += x - w // 2
                 contour[1::2] += y - h // 2
                 segmentation.append(contour.tolist())
-        # No valid countors
+        # No valid contours
         if len(segmentation) == 0:
             continue
 
         # Add to dict
         obj = {
+            # the scripts that run scarlet saves the center of the bounding box,
+            # so we transform from center to bottom left.
             "bbox": [x - w // 2, y - h // 2, w, h],
             "area": w * h,
             "bbox_mode": BoxMode.XYWH_ABS,

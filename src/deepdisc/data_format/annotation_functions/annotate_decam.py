@@ -49,7 +49,7 @@ def annotate_decam(images, mask, idx):
         mask[:, :] = cv2.GaussianBlur(mask[:, :], (9, 9), 2)
 
         # https://github.com/facebookresearch/Detectron/issues/100
-        contours, hierarchy = cv2.findContours(
+        contours, _ = cv2.findContours(
             (mask).astype(np.uint8), cv2.RETR_TREE, cv2.CHAIN_APPROX_SIMPLE
         )
         segmentation = []
@@ -59,7 +59,7 @@ def annotate_decam(images, mask, idx):
             # segmentation.append(contour)
             if len(contour) > 4:
                 segmentation.append(contour)
-        # No valid countors
+        # No valid contours
         if len(segmentation) == 0:
             continue
 
