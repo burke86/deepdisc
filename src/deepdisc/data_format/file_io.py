@@ -177,6 +177,8 @@ class DDLoader:
         """Make sure that there are the same number of images for each filter"""
 
         # Create dictionary of filter : file count for printing the exception
+        # use a `set` to determine if there are actually different numbers of 
+        # files per filter.
         num_files = set()
         file_counts = dict()
         for filt in filenames_dict["filters"]:
