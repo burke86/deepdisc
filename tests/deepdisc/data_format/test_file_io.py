@@ -35,7 +35,7 @@ def test_data_loader_generate_filedict():
     # Initialize the DDLoader object
     hsc_loader = DDLoader()
 
-    filters = ['G', 'R', 'I']
+    filters = ['G', 'R']
 
     # Generate the dictionary of file paths
     hsc_loader.generate_filedict(
@@ -49,7 +49,7 @@ def test_data_loader_generate_filedict():
     assert hsc_loader.filedict['filters'] == filters
     assert len(hsc_loader.filedict['G']['img']) == 1
     assert len(hsc_loader.filedict['R']['img']) == 1
-    assert len(hsc_loader.filedict['I']['img']) == 2
+    # assert len(hsc_loader.filedict['I']['img']) == 2
 
 def test_data_loader_generate_filedict_with_num_samples():
     """Simple test to check generating file dict specifying a limited number 
@@ -87,7 +87,7 @@ def test_data_loader_generate_filedict_with_subdir():
     # Initialize the DDLoader object
     hsc_loader = DDLoader()
 
-    filters = ['G', 'R', 'I']
+    filters = ['I']
 
     # Generate the dictionary of file paths
     hsc_loader.generate_filedict(
@@ -101,8 +101,6 @@ def test_data_loader_generate_filedict_with_subdir():
     hsc_loader.filedict['filters']
     assert hsc_loader.filedict['filters'] == filters
     assert len(hsc_loader.filedict['I']['img']) == 1
-    assert len(hsc_loader.filedict['G']['img']) == 0
-    assert len(hsc_loader.filedict['R']['img']) == 0
 
 def test_data_loader_generate_dataset_dict_hsc():
     """Simple test for hcs dataset dict generation"""
@@ -131,8 +129,6 @@ def test_data_loader_generate_dataset_dict_hsc():
     assert len(hsc_loader.filedict['R']['img']) == 1
     assert len(hsc_loader.filedict['I']['img']) == 1
 
-
-    #! The number of files for each filter has to be equal ??? Implicit assumption?
     hsc_loader.generate_dataset_dict(annotate_hsc)
 
     dataset_dict = hsc_loader.get_dataset()
@@ -149,3 +145,23 @@ def test_data_loader_generate_dataset_no_file_dict():
         hsc_loader.generate_dataset_dict(annotate_hsc)
         assert "No file dictionary" in excinfo.value
 
+def test_data_loader_generate_filedict_raises_with_unequal_file_numbers():
+    """Test expects an exception to be raised if when there are unequal numbers
+    of files per filter."""
+
+    test_data_dirpath = 'tests/deepdisc/test_data/'
+
+    # Initialize the DDLoader object
+    hsc_loader = DDLoader()
+
+    filters = ['G', 'R', 'I']
+
+    # Generate the dictionary of file paths
+    with pytest.raises(RuntimeError) as excinfo:
+        hsc_loader.generate_filedict(
+            os.path.abspath(os.path.join(test_data_dirpath, 'hsc')),
+            filters,
+            '*_scarlet_img.fits',
+            '*_scarlet_segmask.fits'
+        )
+        assert "Found different number" in excinfo.value

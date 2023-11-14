@@ -1,12 +1,9 @@
 import json
 from pathlib import Path
 import glob
-from astropy.io import fits
 import os
-import cv2
 import numpy as np
-from detectron2.structures import BoxMode
-
+import ntpath
 
 class DDLoader:
     """A base deepdisc data loader class"""
@@ -76,11 +73,14 @@ class DDLoader:
             filenames_dict[filt] = {}
 
             if n_samples:
-                filenames_dict[filt]["img"] = [f for f in imgs if f.split("/")[-1][filt_loc] == filt][
+                filenames_dict[filt]["img"] = [f for f in imgs if ntpath.basename(f)[filt_loc] == filt][
                     0:n_samples
                 ]
             else:
-                filenames_dict[filt]["img"] = [f for f in imgs if f.split("/")[-1][filt_loc] == filt]
+                filenames_dict[filt]["img"] = [f for f in imgs if ntpath.basename(f)[filt_loc] == filt]
+
+        # confirm (or raise exception) that all filters have the same number of files
+        self._verify_input_file_count(filenames_dict)
 
         if n_samples:
             masks = masks[0:n_samples]
@@ -172,6 +172,19 @@ class DDLoader:
 
         self.dataset = data
         return self
+
+    def _verify_input_file_count(self, filenames_dict):
+        """Make sure that there are the same number of images for each filter"""
+
+        # Create dictionary of filter : file count for printing the exception
+        num_files = set()
+        file_counts = dict()
+        for filt in filenames_dict["filters"]:
+            file_counts[filt] = len(filenames_dict[filt]["img"])
+            num_files.add(file_counts[filt])
+
+        if len(num_files) > 1:
+            raise RuntimeError(f"Found different number of files for each filter: {file_counts}")
 
 
 def get_data_from_json(filename):
