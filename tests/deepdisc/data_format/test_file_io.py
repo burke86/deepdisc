@@ -145,6 +145,35 @@ def test_data_loader_generate_dataset_no_file_dict():
         hsc_loader.generate_dataset_dict(annotate_hsc)
         assert "No file dictionary" in excinfo.value
 
+
+def test_data_loader_generate_dataset_dict_no_annotation_function():
+    """Simple test for raised exception when no annotation function is provided.
+    """
+
+    test_data_dirpath = 'tests/deepdisc/test_data/'
+
+    # Initialize the DDLoader object
+    hsc_loader = DDLoader()
+
+    filters = ['G', 'R', 'I']
+
+    num_samples = 1
+
+    # Generate the dictionary of file paths
+    hsc_loader.generate_filedict(
+        os.path.abspath(os.path.join(test_data_dirpath, 'hsc')),
+        filters,
+        '*_scarlet_img.fits',
+        '*_scarlet_segmask.fits',
+        n_samples=num_samples,
+    )
+
+    # Attempt to generate dataset_dict, expect a ValueError to be raised.
+    with pytest.raises(ValueError) as excinfo:
+        hsc_loader.generate_dataset_dict(func=None)
+        assert "No annotation function" in excinfo.value
+
+
 def test_data_loader_generate_filedict_raises_with_unequal_file_numbers():
     """Test expects an exception to be raised if when there are unequal numbers
     of files per filter."""
