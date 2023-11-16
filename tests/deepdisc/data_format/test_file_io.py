@@ -1,8 +1,9 @@
 import os
+
 import pytest
 
-from deepdisc.data_format.file_io import get_data_from_json, DDLoader
 from deepdisc.data_format.annotation_functions.annotate_hsc import annotate_hsc
+from deepdisc.data_format.file_io import DDLoader, get_data_from_json
 
 
 def test_get_data_from_json(tmp_path):
@@ -49,7 +50,6 @@ def test_data_loader_generate_filedict():
     assert hsc_loader.filedict['filters'] == filters
     assert len(hsc_loader.filedict['G']['img']) == 1
     assert len(hsc_loader.filedict['R']['img']) == 1
-    # assert len(hsc_loader.filedict['I']['img']) == 2
 
 def test_data_loader_generate_filedict_with_num_samples():
     """Simple test to check generating file dict specifying a limited number 
@@ -194,3 +194,12 @@ def test_data_loader_generate_filedict_raises_with_unequal_file_numbers():
             '*_scarlet_segmask.fits'
         )
         assert "Found different number" in excinfo.value
+
+def test_data_loader_open_json_coco_file(hsc_single_test_file):
+    hsc_loader = DDLoader()
+    hsc_loader.load_coco_json_file(hsc_single_test_file)
+    dataset = hsc_loader.get_dataset()
+
+    assert len(dataset[0]['annotations']) == 454
+    assert dataset[0]['height'] == 1050
+    assert dataset[0]['width'] == 1025
