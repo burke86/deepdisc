@@ -27,11 +27,7 @@ jobs:
       with:
         create-args: >-
           python=3.9.15
-        channels: conda-forge,defaults
-        channel-priority: strict
-        show-channel-urls: true
         environment-file: ci-environment.yml
-        activate-environment: deepdisc
     - name: Install dependencies
       run: |
         sudo apt-get update
