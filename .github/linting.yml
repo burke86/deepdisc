@@ -1,3 +1,7 @@
+# !!! MOVE THIS FILE BACK TO ./workflows WHEN IT'S TIME TO REINTRODUCE PYLINT !!!
+# While this file is outside of the workflows directory, the workflow it defines
+# will not run automatically.
+
 # This workflow will install Python dependencies, then perform static linting analysis.
 # For more information see: https://help.github.com/actions/language-and-framework-guides/using-python-with-github-actions
 
