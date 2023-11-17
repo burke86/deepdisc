@@ -103,7 +103,7 @@ def test_data_loader_generate_filedict_with_subdir():
     assert len(hsc_loader.filedict['I']['img']) == 1
 
 def test_data_loader_generate_dataset_dict_hsc():
-    """Simple test for hcs dataset dict generation"""
+    """Simple test for hsc dataset dict generation"""
 
     test_data_dirpath = 'tests/deepdisc/test_data/'
 
@@ -134,6 +134,34 @@ def test_data_loader_generate_dataset_dict_hsc():
     dataset_dict = hsc_loader.get_dataset()
 
     assert len(dataset_dict[0]['annotations']) == 552
+    
+def test_data_loader_generate_dataset_dict_decam():
+    """Simple test for decam dataset dict generation"""
+
+    test_data_dirpath = 'tests/deepdisc/test_data/decam/'
+    filters = ['g', 'r', 'z']
+
+    # Initialize the DDLoader object
+    decam_loader = DDLoader()
+    
+    # Generate the dictionary of filenames
+    decam_loader.generate_filedict(test_data_dirpath, 
+                                filters, 
+                                'img*.fits', 
+                                'small_mask.fits', 
+                                subdirs=False, 
+                                filt_loc=-6)
+
+    decam_loader.filedict['filters']
+    assert decam_loader.filedict['filters'] == filters
+    assert len(decam_loader.filedict['g']['img']) == 1
+    assert len(decam_loader.filedict['r']['img']) == 1
+    assert len(decam_loader.filedict['z']['img']) == 1
+
+    dataset = decam_loader.generate_dataset_dict(annotate_decam, filters=False).get_dataset()
+
+    assert len(dataset[0]['annotations']) == 2
+
 
 def test_data_loader_generate_dataset_no_file_dict():
     """Test assertion when no file dict is present"""
