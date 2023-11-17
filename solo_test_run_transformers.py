@@ -61,16 +61,13 @@ def main(train_head, args):
     scheme = args.scheme
     alphas = args.alphas
     modname = args.modname
+    # TODOLIV ask if ok to remove initwfiles
     if modname == "swin":
         cfgfile = "./tests/deepdisc/test_data/configs/solo/solo_cascade_mask_rcnn_swin_b_in21k_50ep.py"
-        # initwfile = "/home/shared/hsc/detectron2/projects/ViTDet/model_final_246a82.pkl"
     elif modname == "mvitv2":
         cfgfile = "/home/shared/hsc/detectron2/projects/ViTDet/configs/COCO/cascade_mask_rcnn_mvitv2_b_in21k_100ep.py"
-        # initwfile = "/home/shared/hsc/detectron2/projects/ViTDet/model_final_8c3da3.pkl"
     elif modname == "vitdet":
         cfgfile = "/home/shared/hsc/detectron2/projects/ViTDet/configs/COCO/mask_rcnn_vitdet_b_100ep.py"
-        # initwfile = '/home/g4merz/deblend/detectron2/projects/ViTDet/model_final_435fa9.pkl'
-        # initwfile = "/home/shared/hsc/detectron2/projects/ViTDet/model_final_61ccd1.pkl"
     dtype = dtype_from_args(args.dtype)
     trainfile = dirpath + "single_test.json"
     testfile = dirpath + "single_test.json"
@@ -91,6 +88,7 @@ def main(train_head, args):
     os.makedirs(cfg.OUTPUT_DIR, exist_ok=True)
 
     # Iterations for 15, 25, 35, 50 epochs
+    # TODOLIV could this stuff be moved to a config too?
     epoch = int(args.tl / cfg.dataloader.train.total_batch_size)
     e1 = 20
     e2 = epoch * 10

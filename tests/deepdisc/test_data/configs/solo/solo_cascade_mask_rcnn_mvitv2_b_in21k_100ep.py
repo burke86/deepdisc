@@ -18,7 +18,7 @@ numclasses = len(metadata.classes)
 # Standard config (this has always been the LazyConfig/.py-style config)
 # ---------------------------------------------------------------------------- #
 # Get values from templates
-from ..COCO.cascade_mask_rcnn_swin_b_in21k_50ep import dataloader, lr_multiplier, model, optimizer, train
+from ..COCO.cascade_mask_rcnn_mvitv2_b_in21k_100ep import constants, dataloader, lr_multiplier, model, optimizer, train
 
 # Overrides
 model.proposal_generator.anchor_generator.sizes = [[8], [16], [32], [64], [128]]
