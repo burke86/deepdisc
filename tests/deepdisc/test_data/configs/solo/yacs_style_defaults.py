@@ -2,7 +2,7 @@
 LazyConfig-style config.
 
 This may be used as a base config in any other LazyConfig-style file, just import:
-from .data_loader_defaults import MISC, DATALOADER, DATASETS, GLOBAL, INPUT, MODEL, SOLVER, TEST
+from .yacs_style_defaults import MISC, DATALOADER, DATASETS, GLOBAL, INPUT, MODEL, SOLVER, TEST
 
 Values are as defined in detectron2/config/defaults.py, which can be found at:
 https://github.com/facebookresearch/detectron2/blob/main/detectron2/config/defaults.py
