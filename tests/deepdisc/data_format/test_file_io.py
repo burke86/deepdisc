@@ -3,6 +3,7 @@ import os
 import pytest
 
 from deepdisc.data_format.annotation_functions.annotate_hsc import annotate_hsc
+from deepdisc.data_format.annotation_functions.annotate_decam import annotate_decam
 from deepdisc.data_format.file_io import DDLoader, get_data_from_json
 
 
@@ -51,13 +52,14 @@ def test_data_loader_generate_filedict():
     assert len(hsc_loader.filedict['G']['img']) == 1
     assert len(hsc_loader.filedict['R']['img']) == 1
 
+
 def test_data_loader_generate_filedict_with_num_samples():
     """Simple test to check generating file dict specifying a limited number 
     of files."""
 
     test_data_dirpath = 'tests/deepdisc/test_data/'
 
-    #this block is for debug purposes, set to -1 to include every sample
+    # this block is for debug purposes, set to -1 to include every sample
     num_samples = 1
 
     # Initialize the DDLoader object
@@ -77,6 +79,7 @@ def test_data_loader_generate_filedict_with_num_samples():
     hsc_loader.filedict['filters']
     assert hsc_loader.filedict['filters'] == filters
     assert len(hsc_loader.filedict['I']['img']) == 1
+
 
 def test_data_loader_generate_filedict_with_subdir():
     """Simple test to check generating file dict using a directory structure that
@@ -101,6 +104,7 @@ def test_data_loader_generate_filedict_with_subdir():
     hsc_loader.filedict['filters']
     assert hsc_loader.filedict['filters'] == filters
     assert len(hsc_loader.filedict['I']['img']) == 1
+
 
 def test_data_loader_generate_dataset_dict_hsc():
     """Simple test for hsc dataset dict generation"""
@@ -134,7 +138,8 @@ def test_data_loader_generate_dataset_dict_hsc():
     dataset_dict = hsc_loader.get_dataset()
 
     assert len(dataset_dict[0]['annotations']) == 552
-    
+
+
 def test_data_loader_generate_dataset_dict_decam():
     """Simple test for decam dataset dict generation"""
 
@@ -143,14 +148,14 @@ def test_data_loader_generate_dataset_dict_decam():
 
     # Initialize the DDLoader object
     decam_loader = DDLoader()
-    
+
     # Generate the dictionary of filenames
-    decam_loader.generate_filedict(test_data_dirpath, 
-                                filters, 
-                                'img*.fits', 
-                                'small_mask.fits', 
-                                subdirs=False, 
-                                filt_loc=-6)
+    decam_loader.generate_filedict(test_data_dirpath,
+                                   filters,
+                                   'img*.fits',
+                                   'small_mask.fits',
+                                   subdirs=False,
+                                   filt_loc=-6)
 
     decam_loader.filedict['filters']
     assert decam_loader.filedict['filters'] == filters
