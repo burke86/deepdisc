@@ -101,10 +101,9 @@ class ImageReader(abc.ABC):
         b2 = im[:, :, bandlist[1]]
         b3 = im[:, :, bandlist[2]]
 
-        image = make_lupton_rgb(b1, b2, b3, minimum=m, stretch=stretch, Q=Q)
-        return image
+        return make_lupton_rgb(b1, b2, b3, minimum=m, stretch=stretch, Q=Q)
 
-    def zscore(im, A=1):
+    def zscore(im, A=1., m=0.0):
         """Apply z-score scaling to the image and return the scaled image.
 
         Parameters
@@ -113,6 +112,8 @@ class ImageReader(abc.ABC):
             The image being scaled
         A : float
             A multiplicative scaling factor applied to each band
+        m : float
+            A minimum pixel value. Defaults to 0.0
 
         Returns
         -------
@@ -123,13 +124,14 @@ class ImageReader(abc.ABC):
         Imean = np.nanmean(I)
         Isigma = np.nanstd(I)
 
+        image = np.zeros_like(im)
         for i in range(im.shape[-1]):
             image[:, :, i] = A * (im[:, :, i] - Imean - m) / Isigma
 
         return image
 
     # This dict is created to map an input string to a scaling function
-    norm_dict = {"raw": raw, "lupton": lupton}
+    norm_dict = {"raw": raw, "lupton": lupton, "zscore": zscore}
 
     @classmethod
     def add_scaling(cls, name, func):
