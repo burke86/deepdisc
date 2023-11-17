@@ -61,7 +61,6 @@ def main(train_head, args):
     scheme = args.scheme
     alphas = args.alphas
     modname = args.modname
-    # TODOLIV ask if ok to remove initwfiles
     if modname == "swin":
         cfgfile = "./tests/deepdisc/test_data/configs/solo/solo_cascade_mask_rcnn_swin_b_in21k_50ep.py"
     elif modname == "mvitv2":
