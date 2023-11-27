@@ -61,13 +61,7 @@ def main(train_head, args):
     scheme = args.scheme
     alphas = args.alphas
     modname = args.modname
-    # HSC
-    # dtype = dtype_from_args(args.dtype) 
-    datatype = args.dtype
-    if datatype == 8:
-        dtype = np.uint8
-    elif datatype == 16:
-        dtype = np.int16
+    dtype = dtype_from_args(args.dtype) 
 
     # Get file locations
     trainfile = dirpath + "single_test.json"
