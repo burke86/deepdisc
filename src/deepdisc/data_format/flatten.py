@@ -4,13 +4,11 @@ import detectron2
 from detectron2.utils.logger import setup_logger
 setup_logger()
 
-# import some common libraries
 import numpy as np
 import os, json, cv2, random
 import deepdisc
 from deepdisc.data_format.image_readers import DC2ImageReader
 
-#PATH = deepdisc.__path__[0]
 
 def flatten_dc2(ddicts):
     """Reads in large cutouts and creates postage stamp images centered on individual objects
@@ -54,16 +52,6 @@ def flatten_dc2(ddicts):
 
             bxnew = x-(x+w//2 - 64)
             bynew = y-(y+h//2 - 64)
-            #base=filename.split('.')[0].split('/')[-1]
-            #dirpath = '/home/g4merz/DC2/nersc_data/scarlet_data'
-            #fn=os.path.join(dirpath,base)+'.npy'
-            
-            #print(filename.split('.fits')[0])
-            #base=os.path.join(os.path.dirname(os.path.dirname(PATH)),filename.split('.fits')[0])
-            #fn = base+'.npy'
-            
-            
-            #fn = get_test_image_path(d)
             
             image = image_reader(filename)
             image = np.transpose(image, axes=(2, 0, 1))
@@ -82,7 +70,6 @@ def flatten_dc2(ddicts):
     
     flattened_data = []
     for image,metadata in zip(images,metadatas):
-        #flatdat = np.concatenate((image,metadat.iloc[i].values))
         flatdat = np.concatenate((image,metadata))
         flattened_data.append(flatdat)
 
@@ -90,26 +77,6 @@ def flatten_dc2(ddicts):
     return flattened_data
                     
     
-def get_test_image_path(d):
-    """Function to get an image filepath based on the "filepath" key in a metadata dict
-
-    Parameters
-    ----------
-    d : dict
-        The metadata dictionary
-    
-    Returns
-    -------
-    fn : str
-        The filepath to the stored image.  Ideally, this should just return the "filename" key,
-        but if the user moves the images around or saves in a different format, 
-        it can save the time to rename those keys in the metadata dictionaries 
-    """
-    filename= d[f"filename"]
-    base=os.path.join(os.path.dirname(os.path.dirname(PATH)),filename.split('.fits')[0])
-    fn = base+'.npy'
-    return fn
-
 
 
 
