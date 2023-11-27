@@ -8,13 +8,31 @@ setup_logger()
 import numpy as np
 import os, json, cv2, random
 import deepdisc
+from deepdisc.data_format.image_readers import DC2ImageReader
 
-PATH = deepdisc.__path__[0]
+#PATH = deepdisc.__path__[0]
 
 def flatten_dc2(ddicts):
+    """Reads in large cutouts and creates postage stamp images centered on individual objects
+    Flattens these images+metadata into one tabular dataset. Ignores segmentation maps.
+
+    Parameters
+    ----------
+    ddicts : list[dicts]
+        The metadata dictionaries for large cutouts with multiple objects.
+    
+    Returns
+    -------
+    flattened_data : np array
+        The images + metadata that have now been flattened into a tabular array.  
+        Each row has 98316 columns (6x128x128 + 12 metadata values)
+    """
+    
     i=0
     images=[]
     metadatas = []
+    image_reader = DC2ImageReader(norm="raw")
+
     for d in ddicts:
         filename= d[f"filename"]
         for a in d['annotations']:
@@ -36,23 +54,23 @@ def flatten_dc2(ddicts):
 
             bxnew = x-(x+w//2 - 64)
             bynew = y-(y+h//2 - 64)
-            print(filename)
             #base=filename.split('.')[0].split('/')[-1]
             #dirpath = '/home/g4merz/DC2/nersc_data/scarlet_data'
             #fn=os.path.join(dirpath,base)+'.npy'
             
+            #print(filename.split('.fits')[0])
+            #base=os.path.join(os.path.dirname(os.path.dirname(PATH)),filename.split('.fits')[0])
+            #fn = base+'.npy'
             
-            base=os.path.join(os.path.dirname(os.path.dirname(PATH)),filename.split('.fits')[0])
-            print(base)
-            fn = base+'.npy'
             
+            #fn = get_test_image_path(d)
             
-            image = np.load(fn)
+            image = image_reader(filename)
+            image = np.transpose(image, axes=(2, 0, 1))
+
 
             imagecut = image[:,ynew:ynew+128,xnew:xnew+128]
-            #imagecut = image[:,xnew:xnew+128,ynew:ynew+128]
 
-            #imagecut=imagecut.reshape(imagecut.shape[0],-1)
             images.append(imagecut.flatten())
 
             metadata =[128,128,i,bxnew,bynew,w,h,1,a['category_id'],a['redshift'],a['obj_id'],a['mag_i']]
@@ -71,6 +89,26 @@ def flatten_dc2(ddicts):
             
     return flattened_data
                     
+    
+def get_test_image_path(d):
+    """Function to get an image filepath based on the "filepath" key in a metadata dict
+
+    Parameters
+    ----------
+    d : dict
+        The metadata dictionary
+    
+    Returns
+    -------
+    fn : str
+        The filepath to the stored image.  Ideally, this should just return the "filename" key,
+        but if the user moves the images around or saves in a different format, 
+        it can save the time to rename those keys in the metadata dictionaries 
+    """
+    filename= d[f"filename"]
+    base=os.path.join(os.path.dirname(os.path.dirname(PATH)),filename.split('.fits')[0])
+    fn = base+'.npy'
+    return fn
 
 
 

@@ -26,3 +26,8 @@ def dc2_test_data_dir():
 @pytest.fixture
 def dc2_single_test_file(dc2_test_data_dir):
     return path.join(dc2_test_data_dir, "3828_2,2_12_images.npy")
+
+
+@pytest.fixture
+def dc2_single_test_dict(dc2_test_data_dir):
+    return path.join(dc2_test_data_dir, "single_test.json")
