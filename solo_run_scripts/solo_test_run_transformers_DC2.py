@@ -34,8 +34,8 @@ import torch
 from detectron2.config import LazyConfig, get_cfg
 from detectron2.engine import launch
 
-from deepdisc.data_format.augment_image import train_augs
-from deepdisc.data_format.image_readers import DC2ImageReader
+from deepdisc.data_format.augment_image import hsc_test_augs, train_augs
+from deepdisc.data_format.image_readers import HSCImageReader
 from deepdisc.data_format.register_data import register_data_set
 from deepdisc.model.loaders import DictMapper, return_test_loader, return_train_loader
 from deepdisc.model.models import return_lazy_model
@@ -46,7 +46,7 @@ from deepdisc.training.trainers import (
     return_savehook,
     return_schedulerhook,
 )
-from deepdisc.utils.parse_arguments import make_training_arg_parser
+from deepdisc.utils.parse_arguments import dtype_from_args, make_training_arg_parser
 
 
 def main(train_head, args):
@@ -61,15 +61,21 @@ def main(train_head, args):
     scheme = args.scheme
     alphas = args.alphas
     modname = args.modname
-    dtype = dtype_from_args(args.dtype)
+    # HSC
+    # dtype = dtype_from_args(args.dtype) 
+    datatype = args.dtype
+    if datatype == 8:
+        dtype = np.uint8
+    elif datatype == 16:
+        dtype = np.int16
 
     # Get file locations
     trainfile = dirpath + "single_test.json"
     testfile = dirpath + "single_test.json"
     if modname == "swin":
-        cfgfile = "./tests/deepdisc/test_data/configs/solo/solo_cascade_mask_rcnn_swin_b_in21k_50ep_DC2.py"
+        cfgfile = "./tests/deepdisc/test_data/configs/solo/solo_cascade_mask_rcnn_swin_b_in21k_50ep.py"
     elif modname == "mvitv2":
-        cfgfile = "./tests/deepdisc/test_data/configs/solo/solo_cascade_mask_rcnn_mvitv2_b_in21k_100ep_DC2.py"
+        cfgfile = "./tests/deepdisc/test_data/configs/solo/solo_cascade_mask_rcnn_mvitv2_b_in21k_100ep.py"
     # Vitdet not currently available (cuda issues) so we're tabling it for now
     #elif modname == "vitdet":
     #    cfgfile = "/home/shared/hsc/detectron2/projects/ViTDet/configs/COCO/mask_rcnn_vitdet_b_100ep.py"
@@ -115,16 +121,19 @@ def main(train_head, args):
         # optimizer = instantiate(cfg.optimizer)
         optimizer = return_optimizer(cfg)
 
-        # DC2 (deleted HSC keymapper)
-        def dc2_key_mapper(dataset_dict):
-            filename = dataset_dict["filename"]
-            return filename
-        
-        # DC2 (small changes in this block)
-        IR = DC2ImageReader(norm=args.norm)
-        mapper = DictMapper(IR, dc2_key_mapper, train_augs)
-        loader = return_train_loader(cfg_loader, mapper)
-        test_mapper = DictMapper(IR, dc2_key_mapper)
+        # key_mapper function should take a dataset_dict as input and output a key used by the image_reader function
+        def hsc_key_mapper(dataset_dict):
+            filenames = [
+                dataset_dict["filename_G"],
+                dataset_dict["filename_R"],
+                dataset_dict["filename_I"],
+            ]
+            return filenames
+
+        IR = HSCImageReader(norm=args.norm)
+        mapper = DictMapper(IR, hsc_key_mapper, train_augs).map_data
+        loader = return_train_loader(cfg, mapper)
+        test_mapper = DictMapper(IR, hsc_key_mapper, hsc_test_augs).map_data
         test_loader = return_test_loader(cfg, test_mapper)
 
         saveHook = return_savehook(output_name)
