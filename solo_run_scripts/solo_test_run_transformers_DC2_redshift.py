@@ -115,12 +115,10 @@ def main(train_head, args):
         # optimizer = instantiate(cfg.optimizer)
         optimizer = return_optimizer(cfg)
 
-        # DC2 (deleted HSC keymapper)
         def dc2_key_mapper(dataset_dict):
             filename = dataset_dict["filename"]
             return filename
         
-        # DC2 (small changes in this block)
         IR = DC2ImageReader()
         mapper = RedshiftDictMapper(IR, dc2_key_mapper, train_augs).map_data
         loader = return_train_loader(cfg, mapper)
