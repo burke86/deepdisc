@@ -10,7 +10,7 @@ import deepdisc
 from deepdisc.data_format.image_readers import DC2ImageReader
 
 
-def flatten_dc2(ddicts):
+def flatten_dc2(ddicts, image_reader, key_mapper):
     """Reads in large cutouts and creates postage stamp images centered on individual objects
     Flattens these images+metadata into one tabular dataset. Ignores segmentation maps.
 
@@ -29,7 +29,6 @@ def flatten_dc2(ddicts):
     i=0
     images=[]
     metadatas = []
-    image_reader = DC2ImageReader(norm="raw")
 
     for d in ddicts:
         filename= d[f"filename"]
@@ -53,7 +52,9 @@ def flatten_dc2(ddicts):
             bxnew = x-(x+w//2 - 64)
             bynew = y-(y+h//2 - 64)
             
-            image = image_reader(filename)
+            key = key_mapper(d)
+            
+            image = image_reader(key)
             image = np.transpose(image, axes=(2, 0, 1))
 
 
@@ -61,7 +62,7 @@ def flatten_dc2(ddicts):
 
             images.append(imagecut.flatten())
 
-            metadata =[128,128,i,bxnew,bynew,w,h,1,a['category_id'],a['redshift'],a['obj_id'],a['mag_i']]
+            metadata =[128,128,6,i,bxnew,bynew,w,h,1,a['category_id'],a['redshift'],a['obj_id'],a['mag_i']]
             metadatas.append(metadata)
             i+=1
             
@@ -74,7 +75,7 @@ def flatten_dc2(ddicts):
         flattened_data.append(flatdat)
 
             
-    return flattened_data
+    return np.array(flattened_data)
                     
     
 
