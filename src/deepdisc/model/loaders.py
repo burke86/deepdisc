@@ -175,8 +175,8 @@ class RedshiftFlatDictMapper(DataMapper):
         dataset_dict["width"] = 128
         annotations = []
         annotation = {}
-        annotation["bbox"] = list(row[98308:98312].astype(int))
-        annotation["area"] = annotation["bbox"][2] * annotation["bbox"][3]
+        annotation["bbox"] = [int(b) for b in row[98308:98312]]
+        annotation["area"] = int(annotation["bbox"][2] * annotation["bbox"][3])
         annotation["bbox_mode"] = 1
         annotation["segmentation"] = [[1, 1, 1, 1, 1, 1, 1, 1], [1, 1, 1, 1, 1, 1, 1, 1]]
         annotation["category_id"] = 0
@@ -216,7 +216,7 @@ class RedshiftFlatDictMapper(DataMapper):
             "width": dataset_dict["width"],
             "image_id": dataset_dict["image_id"],
             "instances": instances,
-            "annotations": annos,
+            "annotations": annotations,
         }
 
 
