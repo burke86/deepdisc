@@ -257,16 +257,18 @@ class AstroPredictor:
     """
 
     def __init__(self, cfg, lazy=False, cfglazy=None):
+        # TODO change this to only take in cfglazy. cfg vars should be read from cfglazy (but
+        # may be wrong type and need translation)
         if lazy:
-            self.cfg = cfg.clone()  # cfg can be modified by model
+            #self.cfg = cfg.clone()  # cfg can be modified by model
             self.cfglazy = cfglazy
             self.model = instantiate(self.cfglazy.model)
             self.model.to(self.cfglazy.train.device)
             self.model = create_ddp_model(self.model)
             self.model.eval()
-            checkpointer = DetectionCheckpointer(self.model, cfg.OUTPUT_DIR)
+            checkpointer = DetectionCheckpointer(self.model, cfglazy.OUTPUT_DIR)
             checkpointer.load(cfglazy.train.init_checkpoint)
-        else:
+        else: ##TODO this part is unchanged still
             self.cfg = cfg.clone()  # cfg can be modified by model
             self.model = build_model(self.cfg)
             self.model.eval()
@@ -275,12 +277,13 @@ class AstroPredictor:
 
             checkpointer = DetectionCheckpointer(self.model)
             checkpointer.load(cfg.MODEL.WEIGHTS)
-
+        
+        print(str(dir(cfglazy)).replace(",",",\n"))
         self.aug = T.ResizeShortestEdge(
-            [cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MIN_SIZE_TEST], cfg.INPUT.MAX_SIZE_TEST
+            [cfglazy.INPUT.MIN_SIZE_TEST, cfglazy.INPUT.MIN_SIZE_TEST], cfglazy.INPUT.MAX_SIZE_TEST
         )
 
-        self.input_format = cfg.INPUT.FORMAT
+        self.input_format = cfglazy.INPUT.FORMAT
         assert self.input_format in ["RGB", "BGR"], self.input_format
 
     def __call__(self, original_image):

@@ -2,7 +2,9 @@ import deepdisc.astrodet.astrodet as toolkit
 
 
 def return_predictor_transformer(cfg, cfg_loader):
-    """
+    """ TODO: changing this to only take (and use) cfg. cfg_loader vars can be
+    accessed via cfg.
+    
     This function returns a trained model and its config file.
     Used for models with lazy config files.  Also assumes a cascade roi head structure
 
