@@ -224,8 +224,8 @@ def return_train_loader(cfg_loader, mapper):
 
     Parameters
     ----------
-    cfg_loader: .yml file
-        The config used for the data loaders
+    cfg_loader : LazyConfig
+        The lazy config, which contains data loader config values
 
     **kwargs for the read_image functionality
 
@@ -242,8 +242,8 @@ def return_test_loader(cfg_loader, mapper):
 
     Parameters
     ----------
-    cfg_loader: .yml file
-        The config used for the data loaders
+    cfg_loader : LazyConfig
+        The lazy config, which contains data loader config values
 
     **kwargs for the read_image functionality
 
