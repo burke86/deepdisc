@@ -29,8 +29,8 @@ def get_matched_object_inds(dataset_dict, outputs):
 
     gt_boxes = np.array([a["bbox"] for a in dataset_dict["annotations"]])
     # Convert to the mode model expects
-    # This line used to be uncommented, but the flat dict mapper makes it unnecessary
-    # gt_boxes = BoxMode.convert(gt_boxes, BoxMode.XYWH_ABS, BoxMode.XYXY_ABS)
+    # Make sure the input bboxes are in XYWH mode so they can be converted here
+    gt_boxes = BoxMode.convert(gt_boxes, BoxMode.XYWH_ABS, BoxMode.XYXY_ABS)
     gt_boxes = structures.Boxes(torch.Tensor(gt_boxes))
     pred_boxes = outputs["instances"].pred_boxes
     pred_boxes = pred_boxes.to("cpu")
