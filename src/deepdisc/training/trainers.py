@@ -13,7 +13,7 @@ from deepdisc.astrodet import detectron as detectron_addons
 
 
 class LazyAstroTrainer(SimpleTrainer):
-    def __init__(self, model, data_loader, optimizer, cfg, cfg_old):
+    def __init__(self, model, data_loader, optimizer, cfg):#, cfg_old):
         super().__init__(model, data_loader, optimizer)
         # super().__init__(model, data_loader, optimizer)
 
@@ -22,7 +22,7 @@ class LazyAstroTrainer(SimpleTrainer):
         self.checkpointer = checkpointer.DetectionCheckpointer(
             # Assume you want to save checkpoints together with logs/statistics
             model,
-            cfg_old.OUTPUT_DIR,
+            cfg.OUTPUT_DIR,
         )
         # load weights
         self.checkpointer.load(cfg.train.init_checkpoint)
@@ -34,7 +34,7 @@ class LazyAstroTrainer(SimpleTrainer):
         self.period = 20
         self.iterCount = 0
 
-        self.scheduler = self.build_lr_scheduler(cfg_old, optimizer)
+        self.scheduler = self.build_lr_scheduler(cfg, optimizer)
         # self.scheduler = instantiate(cfg.lr_multiplier)
         self.valloss = 0
 
@@ -103,7 +103,8 @@ class LazyAstroTrainer(SimpleTrainer):
         self.vallossList.append(val_loss)
 
 
-def return_lazy_trainer(model, loader, optimizer, cfg, cfg_loader, hooklist):
+#def return_lazy_trainer(model, loader, optimizer, cfg, cfg_loader, hooklist):
+def return_lazy_trainer(model, loader, optimizer, cfg, hooklist):
     """Return a trainer for models built on LazyConfigs
 
     Parameters
@@ -127,7 +128,7 @@ def return_lazy_trainer(model, loader, optimizer, cfg, cfg_loader, hooklist):
     -------
         trainer
     """
-    trainer = LazyAstroTrainer(model, loader, optimizer, cfg, cfg_loader)
+    trainer = LazyAstroTrainer(model, loader, optimizer, cfg)#, cfg_loader)
     trainer.register_hooks(hooklist)
 
     return trainer

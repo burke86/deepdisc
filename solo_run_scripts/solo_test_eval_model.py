@@ -54,11 +54,7 @@ def return_predictor(
     #cfg = get_cfg()
     #cfg.merge_from_file(model_zoo.get_config_file(cfgfile))  # Get model structure
 
-    #cfg = LazyConfig.load(cfgfile)
-    cfg = LazyConfig.load(
-        f"./tests/deepdisc/test_data/configs/"
-        f"solo/solo_test_eval_model_option.py"
-    )
+    cfg = LazyConfig.load(cfgfile)
     
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = nc
     cfg.OUTPUT_DIR = output_dir
@@ -74,7 +70,7 @@ def return_predictor(
 # cfg now already contains everything we've set previously. We changed it a little bit for inference:
 
 if __name__ == "__main__":
-    # Handle args
+    # --------- Handle args
     args = make_inference_arg_parser().parse_args()
     roi_thresh = args.roi_thresh
     run_name = args.run_name
@@ -85,7 +81,7 @@ if __name__ == "__main__":
     dtype=dtype_from_args(args.datatype)
     
 
-    # Load data
+    # --------- Load data
     dataset_names = ["test"]
     datadir = "/home/shared/hsc/HSC/HSC_DR3/data/"
     t0 = time.time()
@@ -97,7 +93,6 @@ if __name__ == "__main__":
     # Local vars/metadata
     #classes = ["star", "galaxy"]
     bb = args.run_name.split("_")[0]
-    
     
     # --------- Start config stuff
     cfgfile = (
@@ -116,20 +111,18 @@ if __name__ == "__main__":
         box_predictor.test_topk_per_image = 1000
         box_predictor.test_score_thresh = roi_thresh
 
-    #cfg_loader = get_cfg()
-
     cfg.train.init_checkpoint = os.path.join(output_dir, run_name)
     
     # --------- Now we case predictor on model type (the second case has way different config vals it appears)
-    # predictor = return_predictor_transformer(cfg,cfg_loader)
     
     cfg.OUTPUT_DIR = output_dir
     if bb in ['Swin','MViTv2']:
         predictor= return_predictor_transformer(cfg)
     else:
+        cfgfile = "./tests/deepdisc/test_data/configs/solo/solo_test_eval_model_option.py"
         predictor, cfg = return_predictor(cfgfile, run_name, output_dir=output_dir, nc=2, roi_thresh=roi_thresh)
 
-    # --------- This section is similar to test_run_transformers
+    # --------- 
     def hsc_key_mapper(dataset_dict):
         filenames = [
             dataset_dict["filename_G"],
