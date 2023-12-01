@@ -16,7 +16,8 @@ from deepdisc.inference.predictors import return_predictor_transformer
 from deepdisc.utils.parse_arguments import dtype_from_args, make_inference_arg_parser
 
 from detectron2 import model_zoo
-from detectron2.config import get_cfg, LazyConfig
+#from detectron2.config import get_cfg, LazyConfig
+from detectron2.config import LazyConfig
 from detectron2.data import MetadataCatalog
 from detectron2.utils.logger import setup_logger
 
@@ -50,44 +51,20 @@ def return_predictor(
 
     """
 
-    cfg = get_cfg()
-    cfg.merge_from_file(model_zoo.get_config_file(cfgfile))  # Get model structure
-    cfg.DATASETS.TRAIN = "astro_train"  # Register Metadata
-    cfg.DATASETS.TEST = ("astro_test",)  # Config calls this TEST, but it should be the val dataset
-    cfg.DATALOADER.NUM_WORKERS = 1
-    cfg.SOLVER.IMS_PER_BATCH = (
-        4  # this is images per iteration. 1 epoch is len(images)/(ims_per_batch iterations*num_gpus)
+    #cfg = get_cfg()
+    #cfg.merge_from_file(model_zoo.get_config_file(cfgfile))  # Get model structure
+
+    #cfg = LazyConfig.load(cfgfile)
+    cfg = LazyConfig.load(
+        f"./tests/deepdisc/test_data/configs/"
+        f"solo/solo_test_eval_model_option.py"
     )
-    cfg.SOLVER.BASE_LR = 0.001
-    cfg.SOLVER.STEPS = []  # do not decay learning rate for retraining
-    cfg.SOLVER.MAX_ITER = 100  # for DefaultTrainer
-    cfg.MODEL.ROI_HEADS.BATCH_SIZE_PER_IMAGE = (
-        512  # faster, and good enough for this toy dataset (default: 512)
-    )
+    
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = nc
     cfg.OUTPUT_DIR = output_dir
-    cfg.TEST.DETECTIONS_PER_IMAGE = 1000
-    cfg.INPUT.MIN_SIZE_TRAIN = 1025
-    cfg.INPUT.MAX_SIZE_TRAIN = 1050
-
-    # Defaults
-    # PRE_NMS_TOPK_TEST: 6000
-    # POST_NMS_TOPK_TEST: 1000
-    # PRE_NMS_TOPK_TRAIN: 12000
-    # POST_NMS_TOPK_TRAIN: 2000
-
-    cfg.MODEL.RPN.POST_NMS_TOPK_TEST = 6000
-    cfg.MODEL.RPN.PRE_NMS_TOPK_TEST = 6000
-
-    cfg.MODEL.RPN.BATCH_SIZE_PER_IMAGE = 512
-    cfg.MODEL.ANCHOR_GENERATOR.SIZES = [[8, 16, 32, 64, 128]]
-
     cfg.MODEL.WEIGHTS = os.path.join(cfg.OUTPUT_DIR, run_name)  # path to the model we just trained
     cfg.MODEL.ROI_HEADS.SCORE_THRESH_TEST = roi_thresh  # set a custom testing threshold
-    cfg.MODEL.ROI_HEADS.NMS_THRESH_TEST = 0.3
-    cfg.MODEL.ROI_BOX_HEAD.GAMMA = 1
-    cfg.MODEL.ROI_BOX_HEAD.ALPHAS = None
-
+    
     predictor = toolkit.AstroPredictor(cfg)
 
     return predictor, cfg
@@ -99,16 +76,14 @@ def return_predictor(
 if __name__ == "__main__":
     # Handle args
     args = make_inference_arg_parser().parse_args()
-    output_dir = args.output_dir
     roi_thresh = args.roi_thresh
     run_name = args.run_name
     testfile = args.testfile
     savedir = args.savedir
     Path(savedir).mkdir(parents=True, exist_ok=True)
     output_dir = args.output_dir
-    roi_thresh=args.roi_thresh
-    run_name=args.run_name
     dtype=dtype_from_args(args.datatype)
+    
 
     # Load data
     dataset_names = ["test"]
@@ -120,18 +95,18 @@ if __name__ == "__main__":
     print("Took ", time.time() - t0, "seconds to load samples")
     
     # Local vars/metadata
-    classes = ["star", "galaxy"]
+    #classes = ["star", "galaxy"]
     bb = args.run_name.split("_")[0]
     
-    # TODO throw a bunch of this into a main() fn to match test_run_transformers
     
-    # --------- Setting a bunch of config stuff
+    # --------- Start config stuff
     cfgfile = (
         f"./tests/deepdisc/test_data/configs/"
         f"solo/solo_cascade_mask_rcnn_swin_b_in21k_50ep_test_eval.py"
     )
     cfg = LazyConfig.load(cfgfile)
-
+    
+    # --------- Setting a bunch of config stuff
     cfg.model.roi_heads.num_classes = args.nc
 
     for bp in cfg.model.roi_heads.box_predictors:
@@ -141,7 +116,7 @@ if __name__ == "__main__":
         box_predictor.test_topk_per_image = 1000
         box_predictor.test_score_thresh = roi_thresh
 
-    cfg_loader = get_cfg()
+    #cfg_loader = get_cfg()
 
     cfg.train.init_checkpoint = os.path.join(output_dir, run_name)
     
@@ -150,7 +125,7 @@ if __name__ == "__main__":
     
     cfg.OUTPUT_DIR = output_dir
     if bb in ['Swin','MViTv2']:
-        predictor= return_predictor_transformer(cfg,cfg)#cfg_loader)
+        predictor= return_predictor_transformer(cfg)
     else:
         predictor, cfg = return_predictor(cfgfile, run_name, output_dir=output_dir, nc=2, roi_thresh=roi_thresh)
 

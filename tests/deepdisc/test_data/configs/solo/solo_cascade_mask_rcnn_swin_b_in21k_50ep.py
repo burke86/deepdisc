@@ -1,6 +1,4 @@
-""" This is a demo "solo config" file for use in solo_test_run_transformers.py.
-
-This uses template configs cascade_mask_rcnn_swin_b_in21k_50ep and yaml_style_defaults."""
+""" This is a demo "solo config" file for use in solo_test_run_transformers.py."""
 
 from omegaconf import OmegaConf
 

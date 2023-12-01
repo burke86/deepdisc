@@ -1,7 +1,7 @@
 import deepdisc.astrodet.astrodet as toolkit
 
 
-def return_predictor_transformer(cfg, cfg_loader):
+def return_predictor_transformer(cfg):#, cfg_loader):
     """ TODO: changing this to only take (and use) cfg. cfg_loader vars can be
     accessed via cfg.
     
@@ -20,8 +20,9 @@ def return_predictor_transformer(cfg, cfg_loader):
 
     """
 
-    predictor = toolkit.AstroPredictor(cfg_loader, lazy=True, cfglazy=cfg)
-
+    #predictor = toolkit.AstroPredictor(cfg_loader, lazy=True, cfglazy=cfg)
+    predictor = toolkit.AstroPredictor(cfg)
+    
     return predictor
 
 
