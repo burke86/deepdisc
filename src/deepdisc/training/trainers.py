@@ -13,7 +13,7 @@ from deepdisc.astrodet import detectron as detectron_addons
 
 
 class LazyAstroTrainer(SimpleTrainer):
-    def __init__(self, model, data_loader, optimizer, cfg):#, cfg_old):
+    def __init__(self, model, data_loader, optimizer, cfg):
         super().__init__(model, data_loader, optimizer)
         # super().__init__(model, data_loader, optimizer)
 
@@ -103,7 +103,6 @@ class LazyAstroTrainer(SimpleTrainer):
         self.vallossList.append(val_loss)
 
 
-#def return_lazy_trainer(model, loader, optimizer, cfg, cfg_loader, hooklist):
 def return_lazy_trainer(model, loader, optimizer, cfg, hooklist):
     """Return a trainer for models built on LazyConfigs
 
@@ -116,10 +115,7 @@ def return_lazy_trainer(model, loader, optimizer, cfg, hooklist):
     optimizer: detectron2 optimizer
 
     cfg : .py file
-        The LazyConfig used to build the model
-
-    cfg_loader: .yml file
-        The config used for the data loaders
+        The LazyConfig used to build the model, and also stores config vals for data loaders
 
     hooklist: list
         The list of hooks to use for the trainer
@@ -128,7 +124,7 @@ def return_lazy_trainer(model, loader, optimizer, cfg, hooklist):
     -------
         trainer
     """
-    trainer = LazyAstroTrainer(model, loader, optimizer, cfg)#, cfg_loader)
+    trainer = LazyAstroTrainer(model, loader, optimizer, cfg)
     trainer.register_hooks(hooklist)
 
     return trainer

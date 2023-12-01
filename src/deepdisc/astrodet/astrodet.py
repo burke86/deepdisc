@@ -255,32 +255,21 @@ class AstroPredictor:
         inputs = cv2.imread("input.jpg")
         outputs = pred(inputs)
     """
+        def __init__(self, cfg):
+        self.cfg = cfg.clone()  # cfg can be modified by model
 
-    def __init__(self, cfg):#, lazy=False, cfglazy=None):
-        # TODO change this to only take in cfglazy. cfg vars should be read from cfglazy (but
-        # may be wrong type and need translation)
-        if True: #lazy:
-            #self.cfg = cfg.clone()  # cfg can be modified by model
-            cfglazy = cfg
-            
-            self.cfglazy = cfglazy
-            self.model = instantiate(self.cfglazy.model)
-            self.model.to(self.cfglazy.train.device)
-            self.model = create_ddp_model(self.model)
-            self.model.eval()
-            checkpointer = DetectionCheckpointer(self.model, cfglazy.OUTPUT_DIR)
-            checkpointer.load(cfglazy.train.init_checkpoint)
-        """
-        else: ##TODO this part is unchanged still
-            self.cfg = cfg.clone()  # cfg can be modified by model
-            self.model = build_model(self.cfg)
-            self.model.eval()
-            if len(cfg.DATASETS.TEST):
-                self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
+        self.cfglazy = cfglazy
+        self.model = instantiate(self.cfglazy.model)
+        self.model.to(self.cfglazy.train.device)
+        self.model = create_ddp_model(self.model)
+        self.model.eval()
+        if len(cfg.DATASETS.TEST):
+            self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
 
-            checkpointer = DetectionCheckpointer(self.model)
-            checkpointer.load(cfg.MODEL.WEIGHTS)
-        """
+        checkpointer = DetectionCheckpointer(self.model, cfglazy.OUTPUT_DIR)
+        checkpointer.load(cfglazy.train.init_checkpoint)
+        #checkpointer = DetectionCheckpointer(self.model)
+        #checkpointer.load(cfg.MODEL.WEIGHTS)
         
         print(str(dir(cfglazy)).replace(",",",\n"))
         self.aug = T.ResizeShortestEdge(
