@@ -255,7 +255,7 @@ class AstroPredictor:
         inputs = cv2.imread("input.jpg")
         outputs = pred(inputs)
     """
-        def __init__(self, cfg):
+    def __init__(self, cfg):
         self.cfg = cfg.clone()  # cfg can be modified by model
 
         self.model = instantiate(self.cfg.model)
