@@ -160,9 +160,9 @@ def main(train_head, args):
             return filename
 
         IR = DC2ImageReader(norm=args.norm)
-        mapper = DictMapper(IR, dc2_key_mapper, train_augs)
+        mapper = DictMapper(IR, dc2_key_mapper, train_augs).map_data
         loader = return_train_loader(cfg_loader, mapper)
-        test_mapper = DictMapper(IR, dc2_key_mapper)
+        test_mapper = DictMapper(IR, dc2_key_mapper).map_data
         test_loader = return_test_loader(cfg_loader, test_mapper)
 
         saveHook = return_savehook(output_name)
