@@ -124,9 +124,9 @@ def main(train_head, args):
             return filename
         
         IR = DC2ImageReader(norm=args.norm)
-        mapper = DictMapper(IR, dc2_key_mapper, train_augs)
+        mapper = DictMapper(IR, dc2_key_mapper, train_augs).map_data
         loader = return_train_loader(cfg, mapper)
-        test_mapper = DictMapper(IR, dc2_key_mapper)
+        test_mapper = DictMapper(IR, dc2_key_mapper).map_data
         test_loader = return_test_loader(cfg, test_mapper)
 
         saveHook = return_savehook(output_name)
@@ -134,7 +134,7 @@ def main(train_head, args):
         schedulerHook = return_schedulerhook(optimizer)
         hookList = [lossHook, schedulerHook, saveHook]
 
-        trainer = return_lazy_trainer(model, loader, optimizer, cfg, cfg, hookList)
+        trainer = return_lazy_trainer(model, loader, optimizer, cfg, hookList)
 
         trainer.set_period(5)
         trainer.train(0, 20)
