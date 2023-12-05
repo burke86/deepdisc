@@ -1,6 +1,4 @@
-""" This is a demo "solo config" file for use in solo_test_run_transformers.py.
-
-This uses template configs cascade_mask_rcnn_swin_b_in21k_50ep and yaml_style_defaults."""
+"""This is a 'solo config' file using various baselines."""
 
 from omegaconf import OmegaConf
 
@@ -9,18 +7,11 @@ from omegaconf import OmegaConf
 # ---------------------------------------------------------------------------- #
 
 classes = ["star", "galaxy"]
-"""
-bs = 1
 
-metadata = OmegaConf.create() 
-metadata.classes = ["star", "galaxy"]
-
-numclasses = len(metadata.classes)
-"""
 # ---------------------------------------------------------------------------- #
-# Standard config (this has always been the LazyConfig/.py-style config)
+# Standard, Lazy-Config-style config values
 # ---------------------------------------------------------------------------- #
-# Get values from templates
+# Baselines
 from ..COCO.cascade_mask_rcnn_swin_b_in21k_50ep import dataloader, lr_multiplier, model, optimizer, train
 
 # Overrides
@@ -35,9 +26,9 @@ model.proposal_generator.post_nms_topk = [6000, 6000]
 model.proposal_generator.nms_thresh = 0.3
 
 # ---------------------------------------------------------------------------- #
-# Yaml-style config (was formerly saved as a .yaml file, loaded to cfg_loader)
+# Yacs-style config values
 # ---------------------------------------------------------------------------- #
-# Get values from template
+# Baselines
 from .yacs_style_defaults import MISC, DATALOADER, DATASETS, GLOBAL, INPUT, MODEL, SOLVER, TEST
 
 # Overrides

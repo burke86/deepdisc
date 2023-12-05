@@ -1,6 +1,4 @@
-""" This is a demo "solo config" file for use in solo_test_run_transformers.py.
-
-This uses template configs cascade_mask_rcnn_swin_b_in21k_50ep and yaml_style_defaults."""
+"""This is a 'solo config' file using various baselines."""
 
 from omegaconf import OmegaConf
 
@@ -15,9 +13,9 @@ metadata.classes = ["star", "galaxy"]
 numclasses = len(metadata.classes)
 
 # ---------------------------------------------------------------------------- #
-# Standard config (this has always been the LazyConfig/.py-style config)
+# Standard, Lazy-Config-style config values
 # ---------------------------------------------------------------------------- #
-# Get values from templates
+# Baselines
 from ..COCO.cascade_mask_rcnn_mvitv2_b_in21k_100ep import constants, dataloader, lr_multiplier, model, optimizer, train
 
 # Overrides
@@ -27,9 +25,9 @@ model.roi_heads.num_classes = numclasses
 model.roi_heads.batch_size_per_image = 512
 
 # ---------------------------------------------------------------------------- #
-# Yaml-style config (was formerly saved as a .yaml file, loaded to cfg_loader)
+# Yacs-style config values
 # ---------------------------------------------------------------------------- #
-# Get values from template
+# Baselines
 from .yacs_style_defaults import MISC, DATALOADER, DATASETS, GLOBAL, INPUT, MODEL, SOLVER, TEST
 
 # Overrides

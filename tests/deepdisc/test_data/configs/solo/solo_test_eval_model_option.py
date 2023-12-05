@@ -1,3 +1,5 @@
+"""This is a 'solo config' file using various baselines."""
+
 from omegaconf import OmegaConf
 
 # ---------------------------------------------------------------------------- #
@@ -5,15 +7,15 @@ from omegaconf import OmegaConf
 # ---------------------------------------------------------------------------- #
 
 # ---------------------------------------------------------------------------- #
-# Standard config (this has always been the LazyConfig/.py-style config)
+# Standard, Lazy-Config-style config values
 # ---------------------------------------------------------------------------- #
-# Get values from templates
-from ..solo.scascade_mask_rcnn_swin_b_in21k_50ep_test_eval import dataloader, lr_multiplier, model, optimizer, train
+# Baselines
+from ..solo.solo_cascade_mask_rcnn_swin_b_in21k_50ep_test_eval import dataloader, lr_multiplier, model, optimizer, train
 
 # ---------------------------------------------------------------------------- #
-# Yaml-style config (was formerly saved as a .yaml file, loaded to cfg_loader)
+# Yacs-style config values
 # ---------------------------------------------------------------------------- #
-# Get values from template
+# Baselines
 from .yacs_style_defaults import MISC, DATALOADER, DATASETS, GLOBAL, INPUT, MODEL, SOLVER, TEST
 
 # Overrides
