@@ -17,7 +17,6 @@ warnings.filterwarnings("ignore", category=UserWarning)
 from detectron2.utils.logger import setup_logger
 
 setup_logger()
-
 import gc
 import os
 import time
