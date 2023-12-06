@@ -134,7 +134,7 @@ def main(train_head, args):
         schedulerHook = return_schedulerhook(optimizer)
         hookList = [lossHook, schedulerHook, saveHook]
 
-        trainer = return_lazy_trainer(model, loader, optimizer, cfg, cfg, hookList)
+        trainer = return_lazy_trainer(model, loader, optimizer, cfg, hookList)
 
         trainer.set_period(5)
         trainer.train(0, 20)
