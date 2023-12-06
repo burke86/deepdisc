@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 # ---------------------------------------------------------------------------- #
 bs = 1
 
-metadata = OmegaConf.create() 
+metadata = OmegaConf.create()
 metadata.classes = ["object"]
 
 numclasses = len(metadata.classes)
@@ -16,7 +16,13 @@ numclasses = len(metadata.classes)
 # Standard, Lazy-Config-style config values
 # ---------------------------------------------------------------------------- #
 # Baselines
-from ..COCO.cascade_mask_rcnn_swin_b_in21k_50ep import dataloader, lr_multiplier, model, optimizer, train
+from ..COCO.cascade_mask_rcnn_swin_b_in21k_50ep import (
+    dataloader,
+    lr_multiplier,
+    model,
+    optimizer,
+    train,
+)
 
 # Overrides
 model.proposal_generator.anchor_generator.sizes = [[8], [16], [32], [64], [128]]
@@ -26,14 +32,30 @@ model.roi_heads.batch_size_per_image = 512
 
 # DC2 overrides
 model.backbone.bottom_up.in_chans = 6
-model.pixel_mean = [0.05381286, 0.04986344, 0.07526361, 0.10420945, 0.14229655, 0.21245764]
+model.pixel_mean = [
+    0.05381286,
+    0.04986344,
+    0.07526361,
+    0.10420945,
+    0.14229655,
+    0.21245764,
+]
 model.pixel_std = [2.9318833, 1.8443471, 2.581817, 3.5950038, 4.5809164, 7.302009]
 
 # ---------------------------------------------------------------------------- #
 # Yacs-style config values
 # ---------------------------------------------------------------------------- #
 # Baselines
-from .yacs_style_defaults import MISC, DATALOADER, DATASETS, GLOBAL, INPUT, MODEL, SOLVER, TEST
+from .yacs_style_defaults import (
+    MISC,
+    DATALOADER,
+    DATASETS,
+    GLOBAL,
+    INPUT,
+    MODEL,
+    SOLVER,
+    TEST,
+)
 
 # Overrides
 DATALOADER.PREFETCH_FACTOR = 2

@@ -7,7 +7,7 @@ from omegaconf import OmegaConf
 # ---------------------------------------------------------------------------- #
 bs = 1
 
-metadata = OmegaConf.create() 
+metadata = OmegaConf.create()
 metadata.classes = ["star", "galaxy"]
 
 numclasses = len(metadata.classes)
@@ -16,7 +16,14 @@ numclasses = len(metadata.classes)
 # Standard, Lazy-Config-style config values
 # ---------------------------------------------------------------------------- #
 # Baselines
-from ..COCO.cascade_mask_rcnn_mvitv2_b_in21k_100ep import constants, dataloader, lr_multiplier, model, optimizer, train
+from ..COCO.cascade_mask_rcnn_mvitv2_b_in21k_100ep import (
+    constants,
+    dataloader,
+    lr_multiplier,
+    model,
+    optimizer,
+    train,
+)
 
 # Overrides
 model.proposal_generator.anchor_generator.sizes = [[8], [16], [32], [64], [128]]
@@ -28,7 +35,16 @@ model.roi_heads.batch_size_per_image = 512
 # Yacs-style config values
 # ---------------------------------------------------------------------------- #
 # Baselines
-from .yacs_style_defaults import MISC, DATALOADER, DATASETS, GLOBAL, INPUT, MODEL, SOLVER, TEST
+from .yacs_style_defaults import (
+    MISC,
+    DATALOADER,
+    DATASETS,
+    GLOBAL,
+    INPUT,
+    MODEL,
+    SOLVER,
+    TEST,
+)
 
 # Overrides
 DATALOADER.PREFETCH_FACTOR = 2
