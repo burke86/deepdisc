@@ -15,7 +15,6 @@ from deepdisc.astrodet import detectron as detectron_addons
 class LazyAstroTrainer(SimpleTrainer):
     def __init__(self, model, data_loader, optimizer, cfg):
         super().__init__(model, data_loader, optimizer)
-        # super().__init__(model, data_loader, optimizer)
 
         # Borrowed from DefaultTrainer constructor
         # see https://detectron2.readthedocs.io/en/latest/_modules/detectron2/engine/defaults.html#DefaultTrainer
@@ -112,12 +111,12 @@ def return_lazy_trainer(model, loader, optimizer, cfg, hooklist):
         pointer to file
     loader : detectron2 data loader
 
-    optimizer: detectron2 optimizer
+    optimizer : detectron2 optimizer
 
     cfg : .py file
         The LazyConfig used to build the model, and also stores config vals for data loaders
 
-    hooklist: list
+    hooklist : list
         The list of hooks to use for the trainer
 
     Returns
@@ -126,7 +125,6 @@ def return_lazy_trainer(model, loader, optimizer, cfg, hooklist):
     """
     trainer = LazyAstroTrainer(model, loader, optimizer, cfg)
     trainer.register_hooks(hooklist)
-
     return trainer
 
 

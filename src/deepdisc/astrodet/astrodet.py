@@ -138,7 +138,7 @@ class NewAstroTrainer(SimpleTrainer):
         The data loader that loads the training set
     optimizer:
         The learning optimizer
-    cfg: yacs file
+    cfg: config file
         The model config
 
 
@@ -267,11 +267,7 @@ class AstroPredictor:
 
         checkpointer = DetectionCheckpointer(self.model, cfg.OUTPUT_DIR)
         checkpointer.load(cfg.train.init_checkpoint)
-        # if not lazy:
-        #checkpointer = DetectionCheckpointer(self.model)
-        #checkpointer.load(cfg.MODEL.WEIGHTS)
         
-        print(str(dir(cfg)).replace(",",",\n"))
         self.aug = T.ResizeShortestEdge(
             [cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MIN_SIZE_TEST], cfg.INPUT.MAX_SIZE_TEST
         )

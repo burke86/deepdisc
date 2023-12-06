@@ -219,12 +219,12 @@ class RedshiftFlatDictMapper(DataMapper):
         }
 
 
-def return_train_loader(cfg_loader, mapper):
+def return_train_loader(cfg, mapper):
     """Returns a train loader
 
     Parameters
     ----------
-    cfg_loader : LazyConfig
+    cfg : LazyConfig
         The lazy config, which contains data loader config values
 
     **kwargs for the read_image functionality
@@ -233,24 +233,23 @@ def return_train_loader(cfg_loader, mapper):
     -------
         a train loader
     """
-    loader = data.build_detection_train_loader(cfg_loader, mapper=mapper)
+    loader = data.build_detection_train_loader(cfg, mapper=mapper)
     return loader
 
 
-def return_test_loader(cfg_loader, mapper):
-    """Returns a train loader
+def return_test_loader(cfg, mapper):
+    """Returns a test loader
 
     Parameters
     ----------
-    cfg_loader : LazyConfig
+    cfg : LazyConfig
         The lazy config, which contains data loader config values
 
     **kwargs for the read_image functionality
 
     Returns
     -------
-        a train loader
+        a test loader
     """
-    # _train_mapper = mapper
-    loader = data.build_detection_test_loader(cfg_loader, cfg_loader.DATASETS.TEST, mapper=mapper)
+    loader = data.build_detection_test_loader(cfg, cfg.DATASETS.TEST, mapper=mapper)
     return loader
