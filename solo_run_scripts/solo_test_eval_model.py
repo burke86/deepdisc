@@ -42,7 +42,7 @@ def return_predictor(
     run_name: str
         Prefix used for the name of the saved model
     nc: int
-        Number of classes used in the model
+        Number of prediction classes used in the model
     output_dir: str
         THe directory to save metric outputs
     roi_thresh: float
