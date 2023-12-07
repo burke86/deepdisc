@@ -47,7 +47,6 @@ def return_predictor(
         THe directory to save metric outputs
     roi_thresh: float
         Hyperparamter that functions as a detection sensitivity level
-
     """
 
     #cfg = get_cfg()
