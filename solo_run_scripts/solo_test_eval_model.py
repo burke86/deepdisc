@@ -16,7 +16,6 @@ from deepdisc.inference.predictors import return_predictor_transformer
 from deepdisc.utils.parse_arguments import dtype_from_args, make_inference_arg_parser
 
 from detectron2 import model_zoo
-#from detectron2.config import get_cfg, LazyConfig
 from detectron2.config import LazyConfig
 from detectron2.data import MetadataCatalog
 from detectron2.utils.logger import setup_logger
