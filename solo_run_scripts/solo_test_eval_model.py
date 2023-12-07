@@ -48,10 +48,6 @@ def return_predictor(
     roi_thresh: float
         Hyperparamter that functions as a detection sensitivity level
     """
-
-    #cfg = get_cfg()
-    #cfg.merge_from_file(model_zoo.get_config_file(cfgfile))  # Get model structure
-
     cfg = LazyConfig.load(cfgfile)
     
     cfg.MODEL.ROI_HEADS.NUM_CLASSES = nc
@@ -63,9 +59,6 @@ def return_predictor(
 
     return predictor, cfg
 
-
-# Inference should use the config with parameters that are used in training
-# cfg now already contains everything we've set previously. We changed it a little bit for inference:
 
 if __name__ == "__main__":
     # --------- Handle args
@@ -90,7 +83,7 @@ if __name__ == "__main__":
     
     # Local vars/metadata
     #classes = ["star", "galaxy"]
-    bb = args.run_name.split("_")[0]
+    bb = args.run_name.split("_")[0] # backbone
     
     # --------- Start config stuff
     cfgfile = (
