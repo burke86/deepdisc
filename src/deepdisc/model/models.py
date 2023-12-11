@@ -123,7 +123,7 @@ class RedshiftPDFCasROIHeads(CascadeROIHeads):
             gt_redshifts = cat([x.gt_redshift for x in instances])
             nlls_fg = -pdfs_fg.log_prob(gt_redshifts[fg_inds])
 
-            nlls = -pdfs.log_prob(gt_redshifts)[fg_inds] * 0.1
+            nlls = -pdfs.log_prob(gt_redshifts)[fg_inds]
             return {"redshift_loss": torch.mean(nlls)}
 
         else:
@@ -156,7 +156,7 @@ class RedshiftPDFCasROIHeads(CascadeROIHeads):
         if self.training:
             # Need targets to box head
             losses = self._forward_box(features, proposals, targets)
-            # losses.update(self._forward_mask(features, proposals))
+            losses.update(self._forward_mask(features, proposals))
             losses.update(self._forward_redshift(features, proposals))
             losses.update(self._forward_keypoint(features, proposals))
             return proposals, losses
@@ -266,14 +266,14 @@ class RedshiftPointCasROIHeads(CascadeROIHeads):
         if self.training:
             # Need targets to box head
             losses = self._forward_box(features, proposals, targets)
-            # losses.update(self._forward_mask(features, proposals))
-            # losses.update(self._forward_redshift(features, proposals))
+            losses.update(self._forward_mask(features, proposals))
+            losses.update(self._forward_redshift(features, proposals))
             losses.update(self._forward_keypoint(features, proposals))
             return proposals, losses
         else:
             pred_instances = self._forward_box(features, proposals)
             pred_instances = self.forward_with_given_boxes(features, pred_instances)
-            # pred_instances = self._forward_redshift(features, pred_instances)
+            pred_instances = self._forward_redshift(features, pred_instances)
             return pred_instances, {}
 
 
@@ -382,7 +382,7 @@ class RedshiftPointROIHeads(StandardROIHeads):
             # Usually the original proposals used by the box head are used by the mask, keypoint
             # heads. But when `self.train_on_pred_boxes is True`, proposals will contain boxes
             # predicted by the box head.
-            # losses.update(self._forward_mask(features, proposals))
+            losses.update(self._forward_mask(features, proposals))
             losses.update(self._forward_keypoint(features, proposals))
             losses.update(self._forward_redshift(features, proposals))
             return proposals, losses
@@ -493,7 +493,7 @@ class RedshiftPDFROIHeads(StandardROIHeads):
             gt_redshifts = cat([x.gt_redshift for x in instances])
             nlls_fg = -pdfs_fg.log_prob(gt_redshifts[fg_inds])
 
-            nlls = -pdfs.log_prob(gt_redshifts)[fg_inds] * 0.1
+            nlls = -pdfs.log_prob(gt_redshifts)[fg_inds]
             return {"redshift_loss": torch.mean(nlls)}
 
         else:
@@ -539,7 +539,7 @@ class RedshiftPDFROIHeads(StandardROIHeads):
             # Usually the original proposals used by the box head are used by the mask, keypoint
             # heads. But when `self.train_on_pred_boxes is True`, proposals will contain boxes
             # predicted by the box head.
-            # losses.update(self._forward_mask(features, proposals))
+            losses.update(self._forward_mask(features, proposals))
             losses.update(self._forward_keypoint(features, proposals))
             losses.update(self._forward_redshift(features, proposals))
             return proposals, losses
