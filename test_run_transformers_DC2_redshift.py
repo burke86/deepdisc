@@ -17,7 +17,6 @@ warnings.filterwarnings("ignore", category=UserWarning)
 from detectron2.utils.logger import setup_logger
 
 setup_logger()
-
 import gc
 import os
 import time
@@ -169,15 +168,14 @@ def main(train_head, args):
         lossHook = return_evallosshook(val_per, model, test_loader)
         schedulerHook = return_schedulerhook(optimizer)
         #hookList = [lossHook, schedulerHook, saveHook]
-        hookList = [lossHook, schedulerHook, saveHook]
-
+        hookList = [schedulerHook, saveHook]
         trainer = return_lazy_trainer(model, loader, optimizer, cfg, cfg_loader, hookList)
 
         trainer.set_period(5)
         trainer.train(0, 20)
         if comm.is_main_process():
             np.save(output_dir + output_name + "_losses", trainer.lossList)
-            np.save(output_dir + output_name + "_val_losses", trainer.vallossList)
+            #np.save(output_dir + output_name + "_val_losses", trainer.vallossList)
         return
 
 
