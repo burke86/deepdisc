@@ -94,7 +94,7 @@ def main(train_head, args):
 
     # metadata = MetadataCatalog.get(cfg.dataloader.test.dataset.names) # to get labels from ids
 
-    bs = 1
+    bs = 2
     cfg.model.proposal_generator.anchor_generator.sizes = [[8], [16], [32], [64], [128]]
     cfg.dataloader.train.total_batch_size = bs
     cfg.model.roi_heads.num_classes = numclasses
@@ -168,6 +168,7 @@ def main(train_head, args):
         saveHook = return_savehook(output_name)
         lossHook = return_evallosshook(val_per, model, test_loader)
         schedulerHook = return_schedulerhook(optimizer)
+        #hookList = [lossHook, schedulerHook, saveHook]
         hookList = [lossHook, schedulerHook, saveHook]
 
         trainer = return_lazy_trainer(model, loader, optimizer, cfg, cfg_loader, hookList)
