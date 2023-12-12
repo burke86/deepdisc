@@ -16,7 +16,8 @@ numclasses = len(metadata.classes)
 # Standard, Lazy-Config-style config values
 # ---------------------------------------------------------------------------- #
 # Baselines
-from ..COCO.cascade_mask_rcnn_swin_b_in21k_50ep import (
+from ..COCO.cascade_mask_rcnn_mvitv2_b_in21k_100ep import (
+    constants,
     dataloader,
     lr_multiplier,
     model,
