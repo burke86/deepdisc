@@ -138,7 +138,7 @@ class NewAstroTrainer(SimpleTrainer):
         The data loader that loads the training set
     optimizer:
         The learning optimizer
-    cfg: yacs file
+    cfg: config file
         The model config
 
 
@@ -255,27 +255,19 @@ class AstroPredictor:
         inputs = cv2.imread("input.jpg")
         outputs = pred(inputs)
     """
+    def __init__(self, cfg):
+        self.cfg = cfg.clone()  # cfg can be modified by model
 
-    def __init__(self, cfg, lazy=False, cfglazy=None):
-        if lazy:
-            self.cfg = cfg.clone()  # cfg can be modified by model
-            self.cfglazy = cfglazy
-            self.model = instantiate(self.cfglazy.model)
-            self.model.to(self.cfglazy.train.device)
-            self.model = create_ddp_model(self.model)
-            self.model.eval()
-            checkpointer = DetectionCheckpointer(self.model, cfg.OUTPUT_DIR)
-            checkpointer.load(cfglazy.train.init_checkpoint)
-        else:
-            self.cfg = cfg.clone()  # cfg can be modified by model
-            self.model = build_model(self.cfg)
-            self.model.eval()
-            if len(cfg.DATASETS.TEST):
-                self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
+        self.model = instantiate(self.cfg.model)
+        self.model.to(self.cfg.train.device)
+        self.model = create_ddp_model(self.model)
+        self.model.eval()
+        if len(cfg.DATASETS.TEST):
+            self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
 
-            checkpointer = DetectionCheckpointer(self.model)
-            checkpointer.load(cfg.MODEL.WEIGHTS)
-
+        checkpointer = DetectionCheckpointer(self.model, cfg.OUTPUT_DIR)
+        checkpointer.load(cfg.train.init_checkpoint)
+        
         self.aug = T.ResizeShortestEdge(
             [cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MIN_SIZE_TEST], cfg.INPUT.MAX_SIZE_TEST
         )
