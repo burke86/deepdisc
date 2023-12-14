@@ -123,7 +123,7 @@ class RedshiftPDFCasROIHeads(CascadeROIHeads):
             gt_redshifts = cat([x.gt_redshift for x in instances])
             nlls_fg = -pdfs_fg.log_prob(gt_redshifts[fg_inds])
 
-            nlls = -pdfs.log_prob(gt_redshifts)[fg_inds]
+            nlls = -pdfs.log_prob(gt_redshifts)[fg_inds] * 0.1
             return {"redshift_loss": torch.mean(nlls)}
 
         else:
@@ -247,7 +247,7 @@ class RedshiftPointCasROIHeads(CascadeROIHeads):
 
             gt_redshifts = cat([x.gt_redshift for x in instances])
 
-            diff = prediction[fg_inds] - gt_redshifts[fg_inds]
+            diff = (prediction[fg_inds] - gt_redshifts[fg_inds]) * 0.1
             # $diff = prediction - gt_redshifts
 
             return {"redshift_loss": torch.square(diff).mean()}
@@ -352,7 +352,7 @@ class RedshiftPointROIHeads(StandardROIHeads):
             gt_classes = cat([x.gt_classes for x in instances])
             fg_inds = nonzero_tuple((gt_classes >= 0) & (gt_classes < self.num_classes))[0]
             gt_redshifts = cat([x.gt_redshift for x in instances])
-            diff = prediction[fg_inds] - gt_redshifts[fg_inds]
+            diff = (prediction[fg_inds] - gt_redshifts[fg_inds]) * 0.1
             # diff = prediction - cat([x.gt_redshift for x in instances])
             return {"redshift_loss": torch.square(diff).mean()}
         else:
@@ -493,7 +493,7 @@ class RedshiftPDFROIHeads(StandardROIHeads):
             gt_redshifts = cat([x.gt_redshift for x in instances])
             nlls_fg = -pdfs_fg.log_prob(gt_redshifts[fg_inds])
 
-            nlls = -pdfs.log_prob(gt_redshifts)[fg_inds]
+            nlls = -pdfs.log_prob(gt_redshifts)[fg_inds] * 0.1
             return {"redshift_loss": torch.mean(nlls)}
 
         else:

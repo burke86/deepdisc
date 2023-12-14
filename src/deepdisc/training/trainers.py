@@ -11,7 +11,6 @@ from detectron2.utils import comm
 
 from deepdisc.astrodet import detectron as detectron_addons
 
-
 class LazyAstroTrainer(SimpleTrainer):
     def __init__(self, model, data_loader, optimizer, cfg):
         super().__init__(model, data_loader, optimizer)
@@ -47,10 +46,13 @@ class LazyAstroTrainer(SimpleTrainer):
         self.iterCount = self.iterCount + 1
         assert self.model.training, "[SimpleTrainer] model was changed to eval mode!"
         start = time.perf_counter()
-        data_time = time.perf_counter() - start
         data = next(self._data_loader_iter)
+        data_time = time.perf_counter() - start
         # Note: in training mode, model() returns loss
+        start = time.perf_counter()
         loss_dict = self.model(data)
+        loss_time = time.perf_counter() - start
+
         # print('Loss dict',loss_dict)
         if isinstance(loss_dict, torch.Tensor):
             losses = loss_dict
@@ -71,8 +73,10 @@ class LazyAstroTrainer(SimpleTrainer):
             print(
                 "Iteration: ",
                 self.iterCount,
-                " time: ",
+                " data time: ",
                 data_time,
+                " loss time: ",
+                loss_time,
                 loss_dict.keys(),
                 all_losses,
                 "val loss: ",
@@ -81,9 +85,9 @@ class LazyAstroTrainer(SimpleTrainer):
                 self.scheduler.get_lr(),
             )
 
-        del data
-        gc.collect()
-        torch.cuda.empty_cache()
+        #del data
+        #gc.collect()
+        #torch.cuda.empty_cache()
 
     @classmethod
     def build_lr_scheduler(cls, cfg, optimizer):
