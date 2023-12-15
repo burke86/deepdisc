@@ -11,15 +11,7 @@ e1 = 2
 # Standard, Lazy-Config-style config values
 # ---------------------------------------------------------------------------- #
 # Baselines
-"""
-from ..solo.solo_cascade_mask_rcnn_swin_b_in21k_50ep_test_eval import (
-    dataloader,
-    lr_multiplier,
-    model,
-    optimizer,
-    train,
-)
-"""
+
 # ---------------------------------------------------------------------------- #
 # Yacs-style config values
 # ---------------------------------------------------------------------------- #
