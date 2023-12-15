@@ -350,24 +350,22 @@ class AstroPredictor:
     """
 
     def __init__(self, cfg, lazy=False, cfglazy=None):
-        if lazy:
-            self.cfg = cfg.clone()  # cfg can be modified by model
-            self.cfglazy = cfglazy
-            self.model = instantiate(self.cfglazy.model)
-            self.model.to(self.cfglazy.train.device)
+        self.cfg = copy.deepcopy(cfg) # cfg can be modified by model
+        
+        if "model" in self.cfg: # This is when were using a LazyConfig-style model in the solo config
+            self.model = instantiate(self.cfg.model)
+            self.model.to(self.cfg.train.device)
             self.model = create_ddp_model(self.model)
-            self.model.eval()
-            checkpointer = DetectionCheckpointer(self.model, cfg.OUTPUT_DIR)
-            checkpointer.load(cfglazy.train.init_checkpoint)
-        else:
-            self.cfg = cfg.clone()  # cfg can be modified by model
+            
+        else: # This is when we're using a yacs-style model in the solo config (will be specified as "MODEL")
             self.model = build_model(self.cfg)
-            self.model.eval()
-            if len(cfg.DATASETS.TEST):
-                self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
 
-            checkpointer = DetectionCheckpointer(self.model)
-            checkpointer.load(cfg.MODEL.WEIGHTS)
+        self.model.eval()
+        if len(cfg.DATASETS.TEST):
+            self.metadata = MetadataCatalog.get(cfg.DATASETS.TEST[0])
+
+        checkpointer = DetectionCheckpointer(self.model)
+        checkpointer.load(cfg.MODEL.WEIGHTS)
 
         self.aug = T.ResizeShortestEdge(
             [cfg.INPUT.MIN_SIZE_TEST, cfg.INPUT.MIN_SIZE_TEST], cfg.INPUT.MAX_SIZE_TEST
@@ -375,6 +373,7 @@ class AstroPredictor:
 
         self.input_format = cfg.INPUT.FORMAT
         assert self.input_format in ["RGB", "BGR"], self.input_format
+
 
     def __call__(self, original_image):
         """
