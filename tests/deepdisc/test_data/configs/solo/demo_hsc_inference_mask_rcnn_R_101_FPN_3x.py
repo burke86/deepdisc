@@ -5,7 +5,7 @@ from omegaconf import OmegaConf
 # ---------------------------------------------------------------------------- #
 # Local variables and metadata
 # ---------------------------------------------------------------------------- #
-e1 = 2
+e1 = 200
 
 # ---------------------------------------------------------------------------- #
 # Standard, Lazy-Config-style config values
@@ -48,8 +48,6 @@ DATASETS.TEST = "astro_test"
 
 INPUT.MIN_SIZE_TRAIN = 500
 INPUT.MAX_SIZE_TRAIN = 525
-
-MISC.e1 = e1
 
 MODEL.ANCHOR_GENERATOR.SIZES = [[8, 16, 32, 64, 128]]
 MODEL.BACKBONE.FREEZE_AT = 4

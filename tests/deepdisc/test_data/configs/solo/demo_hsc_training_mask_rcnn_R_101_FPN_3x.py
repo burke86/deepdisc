@@ -5,7 +5,7 @@ from omegaconf import OmegaConf
 # ---------------------------------------------------------------------------- #
 # Local variables and metadata
 # ---------------------------------------------------------------------------- #
-e1 = 2
+e1 = 200
 roi_thresh = 0.2
 nms_thresh = 0.3
 
@@ -48,6 +48,7 @@ SOLVER.STEPS = (210000, 250000)
 SOLVER.MAX_ITER = 270000
 
 # Additional Overrides
+
 DATASETS.TRAIN = "astro_train"  # Register Metadata # TODO: Should be TRAIN
 DATASETS.TEST = "astro_test"  # Config calls this TEST, but it should be the val dataset
 
