@@ -1,25 +1,25 @@
+import os
+
+import astropy.io.fits as fits
+import h5py
 import numpy as np
 import scarlet
-import astropy.io.fits as fits
-import os
-import h5py
 
 
 def fitsim_to_numpy(img_files, outdir):
     """Converts a list of single-band FITS images to multi-band numpy arrays
 
-        Parameters
-        ----------
-        img_files: list[str]
-            A nested list of the FITS image files.  
-            The first index is the image and the second index is the filter
-        outdir: str
-            The directory to output the numpy arrays
-    
-    
+    Parameters
+    ----------
+    img_files: list[str]
+        A nested list of the FITS image files.
+        The first index is the image and the second index is the filter
+    outdir: str
+        The directory to output the numpy arrays
+
+
     """
-    
-        
+
     for images in img_files:
         full_im = []
         for img in images:
@@ -29,30 +29,30 @@ def fitsim_to_numpy(img_files, outdir):
 
         full_im = np.array(full_im)
 
-        tract = int(img.split('_')[1])
-        patch = (int(img.split('_')[2].split('_')[0][0]),int(img.split('_')[2].split('_')[0][-1]))
-        sp = int(img.split('_')[3])
+        tract = int(img.split("_")[1])
+        patch = (int(img.split("_")[2].split("_")[0][0]), int(img.split("_")[2].split("_")[0][-1]))
+        sp = int(img.split("_")[3])
 
-        np.save(os.path.join(outdir,f'{tract}_{patch[0]},{patch[1]}_{sp}_images.npy'),full_im)
-   
-    return 
+        np.save(os.path.join(outdir, f"{tract}_{patch[0]},{patch[1]}_{sp}_images.npy"), full_im)
+
+    return
 
 
-def fitsim_to_hdf5(img_files, outdir, dset='train'):
-    """Converts a list of single-band FITS images to flattened multi-band images in an hdf5 file 
+def fitsim_to_hdf5(img_files, outdir, dset="train"):
+    """Converts a list of single-band FITS images to flattened multi-band images in an hdf5 file
 
     Parameters
     ----------
     img_files: list[str]
-        A nested list of the FITS image files.  
+        A nested list of the FITS image files.
         The first index is the image and the second index is the filter
     outdir: str
         The directory to output the numpy arrays
     dset: str
         Prefix for the saved file
-    
+
     """
-    all_images=[]
+    all_images = []
     for images in img_files:
         full_im = []
         for img in images:
@@ -63,16 +63,15 @@ def fitsim_to_hdf5(img_files, outdir, dset='train'):
         full_im = np.array(full_im)
         all_images.append(full_im.flatten())
     all_images = np.array(all_images)
-    
-    with h5py.File(os.path.join(outdir,f"flattened_images_{dset}.hdf5"), "w") as f:
+
+    with h5py.File(os.path.join(outdir, f"flattened_images_{dset}.hdf5"), "w") as f:
         data = f.create_dataset("images", data=all_images)
-   
-    return 
+
+    return
 
 
-
-def ddict_to_hdf5(dataset_dicts,outname):
-    """Converts a list of dataset dictionaries to an hdf5 file (for RAIL usage) 
+def ddict_to_hdf5(dataset_dicts, outname):
+    """Converts a list of dataset dictionaries to an hdf5 file (for RAIL usage)
 
     Parameters
     ----------
@@ -81,7 +80,7 @@ def ddict_to_hdf5(dataset_dicts,outname):
     outname: str
         The name of the output file
     """
-    
+
     data = [json.dumps(this_dict) for this_dict in dataset_dicts]
 
     dt = h5py.special_dtype(vlen=str)
