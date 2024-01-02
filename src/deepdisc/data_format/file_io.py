@@ -191,6 +191,20 @@ class DDLoader:
             
             
     def random_sample(self,outdir,filedict=None,sets=['train','test'], nfiles=[3,1]):
+        """Generates randomly sampled subsets of the data, assuming the scarlet output exists
+
+        Parameters
+        ----------
+        outdir: str
+            Base output directory
+        filedict: dict
+            Dictionary of files to be sampled
+        sets: list[str]
+            Name of subsets
+        nfiles:
+            How many files go in each subset
+        
+        """
         
         if filedict is None:
             if self.filedict is None:
@@ -216,7 +230,9 @@ class DDLoader:
                     shutil.copy(imf, os.path.join(os.path.join(outdir,dset),ntpath.basename(imf)))
                 shutil.copy(maskfs[0], os.path.join(os.path.join(outdir,dset),ntpath.basename(maskfs[0])))
             img_files = np.array([img_files[j] for j in allinds if j not in inds])
-
+        
+        
+        return self
 
 
 def get_data_from_json(filename):
