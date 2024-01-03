@@ -42,6 +42,7 @@ dev = [
     "ipython", # Also used in building notebooks into Sphinx
     "matplotlib", # Used in sample notebook intro_notebook.ipynb
     "numpy", # Used in sample notebook intro_notebook.ipynb
+    "sep", #Used in unit tests
 ]
 
 [build-system]
