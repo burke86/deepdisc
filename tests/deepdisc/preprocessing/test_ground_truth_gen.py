@@ -1,6 +1,6 @@
 import numpy as np
 import pytest
-
+import sep
 from deepdisc.preprocessing.detection import mad_wavelet_own
 
 
