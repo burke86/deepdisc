@@ -1,7 +1,7 @@
 # DeepDISC
 Using deep learning for Detection, Instance Segmentation, and Classification on astornomical survey images.
 
-*Reference Paper:* [Merz et al. 2023, in prep.]
+*Reference Paper:* [Merz et al. 2023](https://academic.oup.com/mnras/article/526/1/1122/7273850)
 
 *Corresponding Author:* 
 [Grant Merz](gmerz3@illinois.edu), University of Illinois at Urbana-Champaign
@@ -17,6 +17,8 @@ DeepDISC is a deep learning framework for efficiently performing source detectio
 Setup:
 
 conda env create -f environment.yml
+
+You will also need to install [scarlet](https://pmelchior.github.io/scarlet/install.html) and [detectron2](https://detectron2.readthedocs.io/en/latest/tutorials/install.html). Building from the source is recommended for both
 
 Usage:
 ```
